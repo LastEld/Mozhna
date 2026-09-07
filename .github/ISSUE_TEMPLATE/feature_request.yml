@@ -1,0 +1,29 @@
+name: Возможность
+description: Новая способность с baseline и критерием пользы
+title: "[Feature]: "
+body:
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Какую задачу пользователя решаем
+    validations:
+      required: true
+  - type: textarea
+    id: baseline
+    attributes:
+      label: Как задача решается сейчас
+      description: Лучший обычный способ с теми же исходными данными.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Минимальное изменение
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Польза, вред и критерий остановки
+    validations:
+      required: true

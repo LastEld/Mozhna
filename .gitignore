@@ -1,0 +1,39 @@
+# Local secrets and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials/
+sessions/
+
+# Private application data
+data/
+uploads/
+backups/
+*.sqlite
+*.sqlite3
+*.db
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# JavaScript and build output
+node_modules/
+.next/
+dist/
+build/
+coverage/
+
+# Editor and OS
+.idea/
+.DS_Store
+Thumbs.db

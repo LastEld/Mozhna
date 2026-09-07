@@ -1,0 +1,26 @@
+name: Задача
+description: Ограниченный срез из roadmap или backlog
+title: "[Task]: "
+body:
+  - type: input
+    id: reference
+    attributes:
+      label: Требование или backlog ID
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Результат и границы
+    validations:
+      required: true
+  - type: textarea
+    id: done
+    attributes:
+      label: Критерии приёмки и способ проверки
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Зависимости и открытые решения

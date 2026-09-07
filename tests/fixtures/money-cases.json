@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "kind": "synthetic_acceptance_examples",
+  "policy_status": "PROPOSED_V2",
+  "currency": "EUR",
+  "money_unit": "minor",
+  "inputs": {
+    "own_liquid_minor": 100000,
+    "mandatory_outflow_minor": 60000,
+    "remaining_living_budget_minor": 10000,
+    "reserve_minor": 20000,
+    "goal_minor": 5000,
+    "eligible_income_minor": 0
+  },
+  "expected_limits": {
+    "planned_minor": 5000,
+    "essential_minor": 10000
+  },
+  "cases": [
+    {
+      "id": "preserves_plan",
+      "candidate_minor": 4000,
+      "expected_decision": "CAN"
+    },
+    {
+      "id": "goal_tradeoff",
+      "candidate_minor": 7000,
+      "expected_decision": "CAN_WITH_TRADEOFF"
+    },
+    {
+      "id": "crosses_reserve",
+      "candidate_minor": 12000,
+      "expected_decision": "CANNOT"
+    },
+    {
+      "id": "stale_balance",
+      "candidate_minor": 4000,
+      "balance_status": "STALE",
+      "expected_decision": "UNKNOWN"
+    }
+  ]
+}

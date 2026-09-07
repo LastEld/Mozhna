@@ -1,0 +1,29 @@
+name: Ошибка
+description: Воспроизводимый дефект документации или реализованного поведения
+title: "[Bug]: "
+body:
+  - type: textarea
+    id: observed
+    attributes:
+      label: Что произошло
+      description: Укажите версию или commit, без персональных данных.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Как воспроизвести
+      description: Шаги и синтетический пример.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Ожидаемый результат
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Проверка и влияние
+      description: Обезличенные ошибки, затронутый сценарий или ссылка на требование.
