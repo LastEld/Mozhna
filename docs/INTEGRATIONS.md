@@ -1,40 +1,55 @@
-# Интеграции
+# Интеграции облачного MOZHNA
 
-Ни одна интеграция пока не подключена. Перед реализацией выбирается один конкретный provider и проверяются его реальные возможности.
+Ни одна интеграция пока не подключена. Каждый adapter имеет owner/consent, capability manifest, health и проверенный контракт. Секреты доступны облачному executor/provider adapter, а не устройству пользователя или модели.
 
 ## Банк и чеки
 
-Порт BankDataProvider: accounts, balance snapshots, transactions, cursor, consent state, freshness, capabilities. Начальный доступ только read-only. Adapter описывает booked/available/pending и проходит синтетические сценарии повторов, переводов, возвратов и расхождений.
+BankDataProvider: accounts, balance snapshots, transactions, cursor, consent state, freshness и capabilities. Первый банк только read-only. Adapter описывает booked/available/pending и проходит сценарии повторов, переводов, возвратов и расхождений.
 
-CSV и ручной ввод служат baseline. Фото чека даёт извлечённые поля и предложение связи с транзакцией. Неуверенные поля подтверждаются; фото не создаёт второй платёж. Файлы приватны, ограничены по типу/размеру, имеют retention.
+CSV — baseline, банк устраняет ручной ввод. Cloud upload принимает приватный файл; worker извлекает данные/OCR/vision через разрешённую capability и создаёт предложение связи с транзакцией. Неуверенные поля подтверждаются; чек не становится вторым платежом. Формат/размер ограничены, retention задан, ссылки короткоживущие.
+
+Камера на устройстве — progressive enhancement: всегда остаётся file picker. Обработка чека продолжается после закрытия клиента.
 
 ## Telegram
 
-Группа может получать разрешённое уточнение и принимать ответ после @-упоминания. Backend проверяет Telegram user id, chat id и связь с владельцем MOZHNA. Упоминание — триггер, а не authentication или approval.
+Группа получает только разрешённое уточнение; @-упоминание запускает проверку user id, chat id и MOZHNA owner. Упоминание не выдаёт authentication/approval.
 
-Предлагаемый default: в группу уходит минимальное уведомление со ссылкой на личный интерфейс; баланс, полный чек и CV не раскрываются. Набор разрешённых полей выбирается отдельно. Значимые внешние действия подтверждаются в доверенном личном интерфейсе.
+Webhook аутентифицируется, дедуплицируется по provider event id и ставит cloud job. Минимальное уведомление ведёт в личный интерфейс; баланс, CV и полный чек по умолчанию не раскрываются. Критичные approvals проходят доверенный личный UI с актуальной версией.
 
-## MCP
+## Входящий remote MCP
 
-MCP — адаптер над теми же services, что UI/API. Capability не включается до реализации, проверки authorization и реального клиентского теста.
+Выбран HTTPS Streamable HTTP endpoint `/mcp`. Протокольную версию и supported client versions фиксировать в compatibility matrix при реализации; не объявлять поддержку всех клиентов по одному успешному тесту. Standard transports и OAuth описаны в [MCP transport](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports) и [authorization](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization).
 
-| Область | Имена v1 | Сокращённое предложение v2 |
+| Tool | Действие | Scope / эффект |
 | --- | --- | --- |
-| Контекст | money_status, list_commitments | get_context |
-| Расчёт | can_spend, explain_decision, assess_income_gap | simulate |
-| Планы | set_goal, classify_transaction и отдельные команды | propose_plan, get_plan |
-| Действия | prepare_application, submit_application | prepare_action, get_action_status; submit через trusted approval |
+| get_context | Минимальный context по задаче и версии | Read; фильтруется по owner и разрешённым данным |
+| simulate | Детерминированный расчёт сценария | Compute; не меняет утверждённые данные |
+| propose_plan | Сохранить typed предложение | Draft write, idempotency key |
+| get_plan | План, версии, следующий шаг и наблюдения | Read |
+| prepare_action | Создать конкретный draft intent | Draft write; не подтверждение |
+| start_job | Поставить allowlisted cloud command | Scopes нужного job kind и проверенный consent |
+| get_job | Состояние и результат job | Owner-scoped read |
+| cancel_job | Запросить остановку дальнейших шагов | Owner-scoped command |
+| get_action_status | Реальный action outcome | Read, без повторного dispatch |
 
-Эта таблица фиксирует альтернативы, а не экспортированный API. Выбор контракта — [ADR-0004](adr/0004-mcp-authorization.md). Модельная запись создаёт предложение; подтверждённые факты и полномочия меняются доверенным серверным путём. Write command имеет idempotency key и возвращает статус/audit reference.
+Это выбранный проектный surface, пока не реализованный API. В C2 экспортируются только реально работающие capabilities; будущие tools не изображаются no-op заглушками.
 
-## Работа и аккаунты
+Web approval подтверждает конкретный payload и ставит dispatch job серверным путём. Отдельного произвольного submit tool для модели нет. Model response или start_job не выпускают approval и не обходят [ACTIONS](ACTIONS.md).
 
-L0 — публичный поиск; L1 — разрешённое чтение аккаунта; L2 — подготовка; L3 — конкретная подтверждённая отправка; L4 — будущий ограниченный мандат.
+Token предназначен ресурсу MOZHNA; provider token не проксируется. Сессия/транспорт MCP не является хранилищем плана. Долгая операция возвращает job id; разрыв запроса не удаляет принятую cloud job. См. [CLOUD_EXECUTION](CLOUD_EXECUTION.md).
 
-Manifest каждого connector указывает public search, read account, draft, submit, receipt verification, supported auth и last validated. Неподдерживаемое действие недоступно. OAuth или поддерживаемый browser-auth выполняется без передачи паролей/2FA модели. Истёкшая сессия останавливает зависимую задачу.
+## Исходящий LLM доступ
 
-Отбор вакансий начинается с жёстких ограничений. Показываются зарплатные условия, график, источник, дата проверки, причины соответствия и неизвестное. Непроверенные налоги/пособия не превращаются в точный net income; некалиброванный fit score не называется вероятностью оффера.
+Cloud worker использует отдельный ModelProvider port с capability checks, budget reservation и нормализованным результатом. Anthropic/Gemini — первые adapters; OpenAI и проверенные self-hosted endpoints добавляются без изменения Money и Plan. [LLM_ADAPTERS](LLM_ADAPTERS.md) — полный контракт.
 
-## Ещё требуется выбрать
+Внешний подписочный AI-клиент может пользоваться MCP отдельно. Он не заменяет облачные inference credentials и не нужен для непрерывной работы настроенного provider.
 
-Банк/provider первого pilot; job connector с нужными разрешёнными действиями; MCP-клиент; бюджет hosting/inference; поля для Telegram. Это не мешает создать ручное денежное ядро.
+## Вакансии и аккаунты
+
+L0 — public search; L1 — scoped account read; L2 — draft; L3 — confirmed submit; L4 — отдельный будущий mandate. OAuth или разрешённый browser-auth без передачи паролей/2FA модели. MFA/истёкшая сессия переводит job в WAITING_INPUT; облачный процесс не обходит проверку.
+
+Manifest: search/read/draft/submit/receipt verification, supported auth, last validated. Отсутствующая capability отключена. Фильтры сначала жёсткие; salary/net income/право на работу не выдумываются, fit score не называется вероятностью оффера.
+
+## Deployment prerequisites
+
+Конкретный bank provider и job connector; OIDC/MCP authorization server; доступные модели/keys и лимиты; поля Telegram и consent. Выбор cloud stack уже сделан. Эти подключения выполняются перед соответствующими live tests, не мешают реализации чистых контрактов и manual cloud money.

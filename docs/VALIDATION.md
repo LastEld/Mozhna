@@ -21,6 +21,19 @@ Baseline — банк/ручной импорт, калькулятор или �
 | Корректные права | Чужой owner, изменённый payload, expiry, revoke, prompt injection |
 | Надёжное исполнение | Timeout, lost response, duplicate command и restore |
 
+## Облачная и адаптивная приёмка
+
+- Принятая job завершается при закрытой вкладке; restart worker продолжает сохранённый шаг.
+- Два workers/schedulers не дублируют команду; устаревший attempt не перезаписывает результат.
+- Один план продолжается с ПК на iPhone и с одной LLM на другой; owner/version/budget сохраняются.
+- API и MCP одинаково отказывают чужому owner и stale write.
+- Два реальных model providers проходят общий schema/permission contract; fake adapter не доказывает интеграцию.
+- Provider outage, quota, refusal и malformed output сохраняют факты и права; cloud cost limit не обходится fallback.
+- Реальные iPhone/Safari, Android/Chrome и ПК проходят критические пути; CI WebKit не заменяет устройство.
+- Без push/установки и при reconnect основные сценарии доступны; offline не выдаёт новый CAN из stale snapshot.
+
+Подробности: [CLIENTS](CLIENTS.md), [LLM_ADAPTERS](LLM_ADAPTERS.md), [CLOUD_EXECUTION](CLOUD_EXECUTION.md).
+
 ## Обязательные сценарии
 
 - Баланс уже включает pending; не вычесть снова.

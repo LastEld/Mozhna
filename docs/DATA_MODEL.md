@@ -1,6 +1,6 @@
 # Модель данных
 
-Предлагаемый логический контракт, не готовые таблицы или миграции. Каждая пользовательская сущность принадлежит owner/workspace; проверки владения обязательны и в личном pilot.
+Логический контракт облачного состояния, не готовые таблицы или миграции. Каждая пользовательская сущность принадлежит owner/workspace; проверки владения обязательны и в личном pilot.
 
 | Область | Сущности | Правило |
 | --- | --- | --- |
@@ -13,8 +13,10 @@
 | Earn | CareerProfile, ProfileFact, JobOpportunity, ApplicationDraft | Факт профиля имеет provenance, объявление — источник и дату проверки |
 | Внешние действия | ActionIntent, Approval, Mandate, Attempt, ExternalReceipt | Payload и разрешение связаны версиями и hash |
 | Подключения | Connection, CapabilityManifest | Secret reference вместо секрета в прикладном ответе |
-| Задания | Job, OutboxEvent | Lease, idempotency, ожидание и последняя ошибка |
+| Задания | Job, OutboxEvent, Schedule | Lease, attempt token, idempotency, checkpoints, timezone, ожидание и последняя ошибка |
+| Модели | ModelProviderConfig, CapabilitySnapshot, ModelRun, BudgetReservation | Разрешённый model id, schema/version, usage, лимит, source refs и нормализованная ошибка |
+| Клиенты | DeviceSession, NotificationSubscription, InboxItem | Отзыв сессии, opt-in, delivery state; устройство не владеет единственной копией плана |
 
-Общий Plan/PlanVersion для SPENDING_CHANGE и INCOME_SEARCH — предложение v2, не обязательство строить универсальный workflow engine.
+Cloud Plan/PlanVersion хранит typed spending-change и income-search планы между устройствами и моделями. Это простой доменный контейнер, не универсальный workflow engine.
 
 История изменений не доказывает истинность внешнего источника и не защищает от администратора базы сама по себе. Обычные операции не переписывают исходные события; политика удаления/retention применяется также к истории, файлам и backups.

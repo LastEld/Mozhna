@@ -1,17 +1,15 @@
-# MCP и authorization
+# Remote MCP и authorization
 
-Статус: PROPOSED. Дата: 2026-09-07. Явное принятие владельцем пока не зафиксировано.
+Статус: DECIDED. Дата: 2026-09-07. Выбор по поручению владельца о cloud/model-neutral работе; [CONTEXT](../CONTEXT.md).
 
-## Контекст
+## Решение
 
-Контракты v1/v2 различаются; любой транспорт должен сохранять owner/scopes и границу approval.
+HTTPS Streamable HTTP remote MCP над общими application services; resource-scoped OAuth tokens, owner/scopes и серверная policy. Выбран surface get_context/simulate/propose_plan/get_plan/prepare_action/start_job/get_job/cancel_job/get_action_status; экспорт по мере реализации.
 
-## Предложение
+MCP — вход для внешних ассистентов, ModelProvider — отдельный исходящий inference контракт. Принятая долгая команда возвращает cloud job id; transport disconnect не отменяет её. Approval создаёт доверенный UI/серверный путь, а не tool proposal модели.
 
-Общие application services; токен MOZHNA предназначен MOZHNA, без передачи provider tokens. Модельные записи — предложения. Значимые действия — через серверную проверку trusted approval.
+## Проверка
 
-## Последствия и проверка
+Выбрать и проверить совместимый authorization server, pinned protocol/client matrix; real client conformance, audience/owner checks, expiry/revoke, state resume и отключение клиента. Unsupported capabilities возвращают явную ошибку.
 
-До MCP slice выбрать имена/схемы tools, поддерживаемый transport/auth и проверить реальным клиентом. Authentication не заменяет approval.
-
-Основание: [восстановленный контекст](../CONTEXT.md). Перед кодом зависимого среза добавить ссылку на решение и изменить статус, если оно принято.
+Статус DECIDED означает выбранный проект, не работающий endpoint. [INTEGRATIONS](../INTEGRATIONS.md).

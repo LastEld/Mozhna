@@ -24,5 +24,13 @@
 | TRUST-01 | Приватность | Экспорт/удаление, минимальные scopes и отсутствие секретов в модели/logs |
 | TRUST-02 | Отзыв | Неотправленные действия блокируются после отзыва; in-flight исход выясняется |
 | OPS-01 | Восстановление | Backup восстанавливает состояние без повторной отправки и оживления отозванных прав |
+| CLOUD-01 | Durable execution | После принятия job закрытие клиента/restart worker не теряют команду |
+| CLOUD-02 | Расписания | Cloud scheduler соблюдает timezone и не дублирует due run |
+| CLOUD-03 | Продолжение | Другое устройство получает тот же plan/job version; stale write отвергается |
+| MODEL-01 | Сменные LLM | Один domain contract проходит через два реальных provider adapters |
+| MODEL-02 | Capability/budget policy | Недоступная capability и исчерпанный бюджет дают явный статус без скрытого fallback |
+| DEVICE-01 | Адаптивный UI | ПК/Android/iPhone/tablet имеют проверенные layout и основные действия |
+| DEVICE-02 | Progressive enhancement | Отсутствие push/install/SSE не блокирует базовые сценарии |
+| DEVICE-03 | Offline boundary | Stale данные помечены; approval и каноническая запись требуют актуального cloud state |
 
 Реализация указывает эти ID в issue/PR и добавляет доказательство только для затронутых возможностей.
