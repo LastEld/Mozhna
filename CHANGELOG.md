@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — устойчивость alpha
+
+- Лимит входа перенесён в БД, добавлены блокировка владельца и повторная проверка сессии перед записью; исправлены гонки удаления и scheduler. Migration `0002_owner_state`.
+- Добавлены проверка production schema readiness, лимит размера тела запроса и завершение worker/scheduler по SIGTERM без следующего запуска.
+- Добавлены карантин после restore и PostgreSQL dump/restore test в CI.
+- Исправлены точность клиентских cents, конфликт открытой формы snapshot, обновление после reconnect и повторная запись при ошибке refresh.
+- Добавлены публичная offline-страница, Vitest и Playwright CI для desktop/Android/iPhone эмуляции; runtime verify прошёл (65 backend и 10 frontend tests), браузерный gate ещё выполняется.
+- Deployment, облачный restore, настоящие устройства и live provider calls остаются открытыми.
+
 ## 2026-09-07 — Alpha runtime
 
 - Реализованы Money, FastAPI auth/API, SQL jobs/worker/scheduler, Reduce/CSV/export и read-only remote MCP.
@@ -7,7 +16,7 @@
 - Добавлены lockfiles, Alembic, Docker/Compose/Render и Runtime CI.
 - Полный cloud deployment, live providers и device QA ещё не выполнены; см. docs/IMPLEMENTATION.md.
 
-## Unreleased
+## 2026-09-07 — Документационный scaffold
 
 ### Changed — cloud-first design
 
@@ -24,4 +33,4 @@
 - GitHub Issue/PR templates, CODEOWNERS, проверка документации и Dependabot для Actions.
 - Синтетические acceptance-примеры и инструкции для разработчиков/AI-агентов.
 
-Приложение и внешние интеграции пока не реализованы.
+В момент создания scaffold приложение и внешние интеграции ещё не были реализованы. Текущий статус — в [IMPLEMENTATION](docs/IMPLEMENTATION.md).

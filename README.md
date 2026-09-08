@@ -12,7 +12,8 @@
 - Durable jobs: отдельные worker/scheduler, восстановление после истёкшего lease, отмена, ограничения очереди.
 - Адаптеры Anthropic и Gemini для черновиков; ключи и разрешение платных вызовов задаются оператором. Live-вызовы пока не проверены.
 - Remote MCP: четыре инструмента чтения с отдельным bearer-токеном, проверенные настоящим SDK-клиентом по HTTP. OAuth пока отсутствует.
-- Вход владельца, серверные сессии, CSRF, версии, JSON-экспорт и удаление данных.
+- Вход владельца, серверные сессии, CSRF и общий для процессов лимит входа в БД. Повторная проверка сессии в транзакции защищает запись после удаления данных или выхода.
+- JSON-экспорт и удаление данных; операторская команда изолирует задания, расписания и сессии после восстановления backup.
 
 Поиск дохода сейчас создаёт ссылки для поиска и непроверенный черновик по предоставленным фактам. Подключений к банкам, проверенных живых вакансий и отправки откликов нет.
 
@@ -25,9 +26,9 @@
 | Данные | PostgreSQL в облаке, SQLite для локальной разработки; Alembic migrations |
 | Контракты | Pydantic → OpenAPI → generated TypeScript types |
 | Запуск | Docker image, API + worker + scheduler, Render blueprint |
-| Проверки | pytest, TypeScript/build, contract drift, PostgreSQL и container smoke в CI |
+| Проверки | pytest, Vitest, TypeScript/build, contract drift; PostgreSQL, container smoke и Playwright в CI |
 
-Есть manifest; offline service worker, push, native iOS/Android пакеты и проверка на настоящих телефонах ещё не выполнены. Обоснование языков: [STACK](docs/STACK.md).
+Есть manifest и публичная offline-страница через service worker; финансовые ответы не кэшируются. Push, native iOS/Android пакеты и проверка на настоящих телефонах ещё не выполнены. Обоснование языков: [STACK](docs/STACK.md).
 
 ## Запуск
 

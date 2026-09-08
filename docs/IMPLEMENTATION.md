@@ -1,6 +1,6 @@
 # Состояние реализации — alpha 0.1
 
-Дата: 2026-09-07. Поручение владельца: попробовать собрать всю идею за один проход с агентами. После исчерпания агентных лимитов основная реализация продолжена одним исполнителем.
+Обновлено: 2026-09-08. После перерывов работа продолжена основным исполнителем и одним агентом по поручению владельца. Доработки текущего среза опубликованы. Backend/PostgreSQL/restore/frontend/Docker CI прошёл; отдельный браузерный gate ещё выполняется.
 
 Это действующая карта **кода**, в отличие от целевой архитектуры в остальных документах. Наличие функции в roadmap не означает, что она работает в alpha.
 
@@ -8,18 +8,19 @@
 
 | Путь | Код / поведение | Граница проверки |
 | --- | --- | --- |
-| Вход владельца | Серверный пароль, HttpOnly cookie, durable session, CSRF, origin и owner checks | API tests; production требует HTTPS origin и пароль ≥16 символов |
+| Вход владельца | Серверный пароль, HttpOnly cookie, durable session, CSRF, origin и owner checks; лимит 8 неудачных входов / 5 минут хранится в БД | Тесты перезапуска и параллельных попыток; production требует HTTPS origin и пароль ≥16 символов |
 | Деньги | Целые EUR cents, остаток, обязательства, reserve/goal/living budget, freshness, сценарий покупки | 25 тестов ядра, API и MCP вызывают одно ядро |
 | Reduce | План → active/rejected/completed → наблюдения; серверная арифметика; optimistic version | API lifecycle и конфликт версий |
 | Журнал | Ручные записи, строгий CSV, повторный импорт пропускает дубли | API tests; баланс обновляется отдельно после сверки |
 | Фон | SQL jobs, CAS lease, retry после истечения lease, cancel и защита результата устаревшего worker | Тесты API/worker; PostgreSQL concurrency gate в CI |
-| Расписание | До 10 активных планов, интервал 1–168 часов, manual comparison, coalesce пропущенных запусков | Scheduler test, persisted next_due, кнопка ежедневного запуска |
+| Расписание | До 10 активных планов, интервал 1–168 часов, manual comparison, coalesce; блокировка владельца и повторное чтение перед enqueue | Тесты двух scheduler и удаления между выбором расписания и исполнением, включая PostgreSQL, прошли CI |
 | Модели | Нативные HTTP adapters Anthropic/Gemini, JSON-валидация, timeout, нормализованные ошибки | Контрактные тесты с mock HTTP; реальные аккаунты не подключены |
 | MCP | Streamable HTTP `/mcp/`, отдельный static bearer, owner-scoped reads | Реальный MCP SDK client → HTTP → tools/list + tools/call |
 | Earn | Поисковые ссылки и модельный черновик из фактов пользователя | Ссылки не являются проверенными вакансиями; черновик требует проверки |
-| Данные | JSON export, удаление records/jobs/schedules/sessions | API tests; backups и внешние запросы удалением не отзываются |
-| Web | Пять экранов, формы, обработка ошибок, responsive CSS, polling/reconnect, manifest | TypeScript и production build; browser/device QA пока не выполнена |
-| Доставка | Dockerfile, Compose, Render blueprint, Alembic, GitHub Actions | Локально проверены миграции SQLite; Docker/PostgreSQL проверяются отдельным CI |
+| Данные | JSON export, удаление records/jobs/schedules/sessions; запись повторно проверяет сессию под блокировкой владельца | SQLite/PostgreSQL-тесты гонок erase/logout; backups и внешние запросы удалением не отзываются |
+| Восстановление | CLI `mozhna.recovery --runtime-stopped` отменяет queued/running jobs, удаляет schedules и sessions, сохраняет финансовые records | SQLite и реальный PostgreSQL dump/restore с карантином прошли CI |
+| Web | Пять экранов, responsive CSS, polling/reconnect, manifest; точный разбор cents; конфликт устаревшей формы вместо перезаписи; публичная offline-страница | Добавлены Vitest и Playwright: Desktop Chrome, Pixel 7/Chromium, iPhone 13/WebKit. Новый браузерный CI и real-device QA пока не подтверждены |
+| Доставка | Dockerfile, Compose, Render blueprint, Alembic, GitHub Actions; readiness проверяет таблицы и production migration head | Migration/auth/recovery, PostgreSQL, Docker и HTTP smoke прошли CI; browser gate ещё выполняется |
 
 ## Финансовая policy
 
@@ -29,7 +30,7 @@
 
 ## Упрощения alpha
 
-- Один владелец. Пароль хранится в конфигурации сервера; OIDC, MFA, multi-tenant onboarding и восстановление доступа ещё не реализованы. Ограничение login attempts локально процессу; API должен оставаться в одном экземпляре до distributed hardening.
+- Один владелец. Пароль хранится в конфигурации сервера; OIDC, MFA, multi-tenant onboarding и восстановление доступа ещё не реализованы. Ограничение login attempts хранится в `owner_state` и сериализуется в БД между процессами. Оно общее для аккаунта: злоумышленник может временно затруднить новые входы; уже открытые сессии продолжают работать. Это не проверка полной готовности к масштабированию.
 - MCP-токен читает данные одного владельца. Он не является OAuth, не поддерживает делегированные scopes/consent и отзывается удалением/сменой переменной и перезапуском API. Совместимость с любым конкретным AI-клиентом не заявляется.
 - В очередь попадают только расчёты, ссылки и черновики. Submit, bank transfer, покупки, browser executor и автономные действия отсутствуют.
 - До 40 пользовательских jobs за последние 24 часа по умолчанию; до 1200 output tokens за вызов. Это не денежная квота. Входные tokens и повтор после аварии могут тарифицироваться; резервирования стоимости нет. Paid inference изначально выключен.
@@ -37,9 +38,9 @@
 - Интервальные schedules запускают только бесплатную арифметику. Они не ищут изменившиеся цены; не являются календарным расписанием с timezone/DST. Пропущенные запуски объединяются в один.
 - Журнал показывает последние 1000 операций; полный набор доступен в export. MCP ограничивает выдачу 100 планами и 50 jobs, UI — 100 последними jobs. Архивирование и retention jobs ещё не автоматизированы.
 - CSV external_id должен быть уникальным в источнике; при его отсутствии одинаковые нормализованные строки считаются дублем. Исправление уже импортированной строки с тем же ID не обновляет старую операцию. Для нескольких банков нужен source namespace, пока его нет.
-- Удаление очищает активную БД и сессии. Оно не удаляет резервные копии хостинга, записи модели у провайдера и не отзывает отправленный запрос. Гарантия стирания при конкурентных уже аутентифицированных запросах требует отдельного hardening.
-- Manifest не означает полный offline PWA: service worker, push, iOS install QA, native shells и app stores отсутствуют. Приложение не сохраняет финансовый cache в localStorage.
-- Health endpoint проверяет доступность БД. Алерты, worker heartbeat, backup restore drill, audit ledger и cost accounting остаются эксплуатационными задачами.
+- Удаление очищает активную БД и сессии. Оно не удаляет резервные копии хостинга, записи модели у провайдера и не отзывает отправленный запрос. Записывающие API-запросы повторно проверяют сессию под блокировкой владельца; scheduler также повторно читает состояние после блокировки. Служебная строка `owner_state` остаётся для сохранения лимита входа.
+- Service worker кэширует только публичную offline-страницу для перезагрузки без сети. API/MCP, финансовые данные и записи не кэшируются; скрытой очереди offline-записей нет. Push, iOS install QA, native shells и app stores отсутствуют.
+- Health endpoint проверяет доступность таблиц/столбцов и актуальность Alembic head в production. Worker и scheduler обрабатывают SIGTERM, завершая текущую операцию без следующего запуска; принудительное завершение хостингом остаётся возможным. Алерты, heartbeat, облачный restore drill, audit ledger и cost accounting остаются эксплуатационными задачами.
 
 ## Roadmap gates
 
@@ -47,10 +48,14 @@ C0–C3 имеют реализованные части, но не закрыт
 
 Автоматические тесты подтверждают технические свойства на синтетических данных. Полевые продуктовые измерения BaseLineReduce не проводились; полезность, экономия пользователя и результат поиска работы не доказаны.
 
-## Следующие действия
+## Доказательства и следующие действия
 
-1. Пройти runtime CI с PostgreSQL и Docker; исправить конкретные ошибки до deployment.
-2. Render подключён; согласовать показанный ресурсный бюджет и развернуть blueprint с собственным паролем. Проверить вход и background job через HTTPS.
-3. Проверить интерфейс в браузере и на ПК/Android/iPhone; провести backup/restore и сетевые сценарии.
+Предыдущий опубликованный commit `4822b94f197f9522f40781ead6a70ff17402ea00` прошёл [Runtime CI](https://github.com/LastEld/Mozhna/actions/runs/34216734464): 44 backend tests, PostgreSQL migrations/concurrency, frontend/contracts, Docker build и HTTP smoke контейнера. Это свидетельство относится к этому commit.
+
+Текущий опубликованный commit `f6993d5cb933bfa7c3b85a28118e0beca83fb5c8` прошёл [Runtime verify](https://github.com/LastEld/Mozhna/actions/runs/34274462396/job/102223924649): **65 backend tests, без пропусков**, включая PostgreSQL гонки и реальный dump/restore с карантином; **10 Vitest tests**, production frontend build, contract drift, migrations, Docker build и production HTTP smoke. Документационный CI также зелёный. Отдельный browser gate ещё выполняется: его результат пока не подтверждён.
+
+1. Завершить новый Playwright CI именно на опубликованном commit и исправить выявленные сбои. Остальные runtime gates уже прошли; браузерные screenshots/trace нужно оценить отдельно.
+2. Подтвердить Render workspace и стоимость ресурсов blueprint; развернуть с собственным паролем. Затем проверить вход и background job через HTTPS.
+3. Выполнить облачный [restore drill](RECOVERY.md) и проверить настоящие ПК/Android/iPhone, установку и клавиатуру. Эмуляция Playwright не заменяет устройства.
 4. Настроить два provider accounts, их model IDs и отдельные billing limits; провести live contract tests.
 5. Подключить OIDC/MCP OAuth, затем первый проверяемый source connector по roadmap. Не включать внешнюю отправку без отдельного action boundary.

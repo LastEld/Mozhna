@@ -130,6 +130,7 @@ test("money, plan, observation, durable job, CSV and safe offline state", async 
   await resumed.evaluate(() =>
     navigator.serviceWorker.ready.then(() => undefined),
   );
+  await expect.poll(() => resumed.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBeTruthy();
   await context.setOffline(true);
   await expect(
     resumed.getByRole("status").filter({ hasText: "Немає з’єднання" }),

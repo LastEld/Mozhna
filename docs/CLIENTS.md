@@ -1,6 +1,6 @@
 # Адаптивные клиенты: ПК, Android, iPhone
 
-Alpha UI собран; manifest есть, offline/push/native и real-device QA отсутствуют. [Текущее состояние](IMPLEMENTATION.md).
+Alpha UI собран; есть manifest и публичная offline-страница через service worker. Финансового offline cache, push, native пакетов и real-device QA нет. Остальной документ описывает также целевые возможности. [Текущее состояние](IMPLEMENTATION.md).
 
 Статус: выбранная стратегия — один React/TypeScript PWA-клиент, cloud API и возможность Capacitor-пакетов позднее.
 
@@ -48,4 +48,4 @@ Service-worker update не перезагружает форму approval авт
 
 ## Проверка устройств
 
-CI: Chromium/Firefox/WebKit browser tests для критических путей. Release gate отдельно включает настоящий iPhone/Safari и Android/Chrome: login, камера/выбор фото, safe areas, клавиатура, background/resume, PWA install и notification permission. Эмуляция WebKit в CI не объявляется полной проверкой iPhone.
+Текущий CI содержит Playwright tests для Desktop Chrome, Pixel 7/Chromium и iPhone 13/WebKit; их новый прогон пока не подтверждён. Firefox остаётся целевым дополнительным покрытием. Release gate отдельно включает настоящий iPhone/Safari и Android/Chrome: login, камера/выбор фото, safe areas, клавиатура, background/resume, PWA install и notification permission. Эмуляция WebKit в CI не объявляется полной проверкой iPhone.

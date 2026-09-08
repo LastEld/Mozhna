@@ -10,6 +10,7 @@
 6. [INTEGRATIONS](INTEGRATIONS.md), [ACTIONS](ACTIONS.md) — внешние системы и права.
 7. [ROADMAP](ROADMAP.md), [BACKLOG](BACKLOG.md) — работа без календарных сроков.
 8. [DEPLOYMENT](DEPLOYMENT.md), [OPERATIONS](OPERATIONS.md), [VALIDATION](VALIDATION.md) — развёртывание и доказательства.
-9. [ADR](adr/README.md) — отдельные технические решения.
+9. [RECOVERY](RECOVERY.md) — backup, восстановление и карантин незавершённых заданий.
+10. [ADR](adr/README.md) — отдельные технические решения.
 
 Статусы: REQUIREMENT — требование; PROPOSED — ещё не выбранное предложение; DECIDED — технический выбор в рамках поручения; IMPLEMENTED — только со ссылкой на код/проверки. ACCEPTED применяется, если есть явное принятие владельцем конкретного решения. DECIDED не выдаётся за такое персональное утверждение.

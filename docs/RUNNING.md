@@ -78,10 +78,22 @@ uv run pytest -q
 uv run python ../../scripts/export_openapi.py
 cd ../../apps/web
 pnpm generate:api
+pnpm test
 pnpm build
 ```
 
-PostgreSQL-тест пропускается без `TEST_DATABASE_URL` на отдельную тестовую БД. Runtime CI создаёт такую БД, применяет migrations, запускает тест конкурентного claim и собирает/запускает контейнер. `scripts/smoke_http.py` предназначен только для синтетического CI-контейнера.
+PostgreSQL-тесты пропускаются без `TEST_DATABASE_URL` на отдельную тестовую БД. Тест реального dump/restore также требует `PG_CONTAINER_ID` контейнера PostgreSQL с утилитами и Docker CLI: он создаёт временную восстановленную БД и удаляет её после проверки. Не указывайте рабочую БД. Runtime CI предоставляет эти параметры, применяет migrations, запускает тесты конкурентного исполнения/auth/erase и собирает/запускает контейнер. `scripts/smoke_http.py` предназначен только для синтетического CI-контейнера.
+
+### Браузерные сценарии
+
+После установки backend и сборки frontend, из `apps/web`:
+
+```bash
+pnpm exec playwright install --with-deps chromium webkit
+pnpm test:e2e
+```
+
+Playwright запускает отдельные API/worker на временной SQLite через `scripts/e2e_server.py`; все данные синтетические. Сценарии покрывают деньги, планы, наблюдения, фоновую job после закрытия вкладки, повторный CSV, потерю сети и конфликт двух версий. Проекты Pixel 7 и iPhone 13 используют эмуляцию viewport/touch в Chromium/WebKit, а не настоящие телефоны. GitHub Actions сохраняет отчёт, screenshots и failure traces в artifact `browser-evidence`. Результат нужно читать на соответствующем commit; наличие теста не означает его успешный запуск.
 
 ## Модели
 

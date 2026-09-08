@@ -4,4 +4,6 @@
 - `uv run python ../../scripts/export_openapi.py` из services/backend — генерация OpenAPI без подключения БД/моделей.
 - `python scripts/smoke_http.py` — только для изолированного синтетического CI-контейнера; health, frontend, auth boundary и cookie.
 
+- `scripts/e2e_server.py` — только изолированный Playwright fixture: временная SQLite, синтетический владелец, API и worker; не команда production-запуска.
+
 Runtime tests: [services/backend/tests](../services/backend/tests). Генерация TypeScript: `pnpm generate:api` из apps/web.

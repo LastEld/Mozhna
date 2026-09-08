@@ -1,48 +1,45 @@
 # Эксплуатация облачного приложения
 
-Статус: требования и план; runtime создан, hosting ещё не развёрнут. Это целевые требования; фактический scope — в [IMPLEMENTATION](IMPLEMENTATION.md). Target описан в [DEPLOYMENT](DEPLOYMENT.md).
+Runtime alpha создан; hosting ещё не развёрнут. Ниже отделены работающие механизмы от оставшихся эксплуатационных задач. [Карта реализации](IMPLEMENTATION.md), [развёртывание](DEPLOYMENT.md), [backup/restore runbook](RECOVERY.md).
 
 ## Долговечность
 
-PostgreSQL хранит facts, plan versions, jobs, outbox и approvals. Приватные файлы — object storage. API replicas не хранят единственную копию session/job state в памяти. Worker restart продолжает checkpoint; scheduler не зависит от устройства пользователя.
+PostgreSQL хранит финансовые records, jobs, schedules, sessions и owner_state. Sessions, лимит входа и jobs не зависят от памяти одного API-процесса. Отдельных outbox/approvals, object storage и приватных uploads в alpha пока нет.
 
-Backup/restore покрывает базу, файлы и metadata связи, но не раскрывает секреты в export. Конкретные RPO/RTO и retention выбираются перед production исходя из бюджета и требований; успешное создание backup не считается проверкой restore.
+Worker получает lease на 120 секунд. После аварии задание может быть повторено, до трёх attempts. CAS не даёт устаревшему worker перезаписать результат, но повторный provider request может тарифицироваться. Ошибка provider завершает job как failed; автоматического fallback или гарантии exactly-once нет. Worker и scheduler принимают SIGTERM/SIGINT: заканчивают текущую операцию и не начинают следующую. Оператор должен дать им время завершиться; принудительный kill хостинга остаётся возможным.
+
+Scheduler сохраняет next_due, объединяет пропущенные интервалы и проверяет расписание под блокировкой владельца перед enqueue. Удаление данных сериализовано с записывающими API-запросами и scheduler. После logout/erase уже аутентифицированный, но ещё не записавший запрос повторно проверяет сессию перед изменением.
 
 ## Наблюдаемость
 
-| Сигнал | Назначение |
-| --- | --- |
-| API latency/errors и readiness | Доступность клиента/MCP |
-| last_successful_sync, as_of | Свежесть денег |
-| reconciliation difference, UNKNOWN reason | Качество финансового основания |
-| Queue age, lease expiry, attempts | Потерянные/зависшие jobs и конкуренция |
-| Scheduler lag и duplicate suppression | Исполнение расписаний |
-| Provider timeout/refusal/quota | Состояние LLM/внешних connectors |
-| Reserved/actual task cost | Бюджет inference и внешних действий |
-| OUTCOME_UNKNOWN | Очередь обязательной сверки |
-| Worker/scheduler heartbeat | Различать отсутствие задач и мёртвый процесс |
+`/healthz` проверяет доступность таблиц/столбцов; в production — также соответствие Alembic head. Это readiness API, а не heartbeat worker или доказательство работоспособности модели.
 
-Logs: correlation ID, versions, error categories и минимальные причины. Нет raw выписок, CV, фото, provider tokens и model context по умолчанию. Secrets хранятся отдельно; traces редактируются по privacy policy.
+UI показывает последние jobs, статусы, attempts и нормализованные ошибки; состояние хранится в БД. Отдельная система алертов и метрик ещё не настроена. До использования значимых данных нужны:
+
+- API errors/latency, queue age, lease expiry и scheduler lag.
+- Worker/scheduler heartbeat и оповещение о failed jobs.
+- Контроль свежести snapshot и причин UNKNOWN.
+- Расходы hosting/inference и billing limits провайдеров.
+- Контроль успешного backup, retention и регулярная проверка restore.
+
+Не помещайте в logs и traces выписки, CV, фото, provider tokens или полный model context. Корреляционные ID, audit ledger и унифицированное редактирование traces остаются будущей работой.
 
 ## Восстановление
 
-1. Остановить внешние dispatch и scheduler до проверки восстановленного состояния.
-2. Восстановить DB/object links и проверить версию схемы/денежной policy.
-3. Сверить active connections, revocation epoch, consent и неизвестные внешние исходы.
-4. Старые approvals/мандаты, актуальность которых нельзя доказать, оставить недействительными; не оживлять по старому backup.
-5. Восстановить read-only задачи и API; внешние actions разрешать только после reconciliation.
-6. Зафиксировать фактический результат restore test.
+[RECOVERY](RECOVERY.md) содержит команды backup, восстановления в новую БД, migration и `python -m mozhna.recovery --runtime-stopped`. До карантина должны быть остановлены API, worker и scheduler. Карантин сохраняет финансовые records, отменяет восстановленные queued/running jobs и удаляет schedules/sessions. Пароль и MCP bearer в окружении не меняются.
 
-Нельзя обещать exactly-once на произвольном job-сайте. Принятый работодателем отклик не отменяется восстановлением базы.
+SQLite-проверка и реальный PostgreSQL dump/restore с карантином прошли [Runtime CI](https://github.com/LastEld/Mozhna/actions/runs/34274462396/job/102223924649) на commit `f6993d5cb933bfa7c3b85a28118e0beca83fb5c8`. Проверки восстановления на Render не было; RPO/RTO и retention не выбраны. Успешное создание backup не считается успешным restore.
 
 ## Ошибки и релизы
 
-Ошибка денежных инвариантов выключает зависимое разрешающее решение. Недоступность LLM сохраняет деньги/планы и ставит соответствующие задачи в ожидание. Потерянный submit response создаёт OUTCOME_UNKNOWN и блокирует автоматический повтор.
+Ошибка денежных инвариантов приводит к UNKNOWN, а не разрешающему ответу. Недоступность модели не отключает деньги и планы. Cancel запрещает сохранение результата в canceled job, но не отзывает уже начавшийся сетевой запрос. Закрытие вкладки не останавливает работающий cloud worker.
 
-Миграция отдельной release task, совместимость старого frontend/worker на время rollout, image rollback без автоматического удаления новых данных. Изменение model version проходит adapter conformance и малый разрешённый smoke перед полным включением.
+Миграции выполняются отдельной release task. Production readiness отклоняет неактуальную схему; worker/scheduler startup ждёт migration head. Откат image не означает безопасный downgrade БД. Сохраните backup перед migration и проверяйте совместимость процессов при rollout. Изменение model ID требует разрешённого live smoke с доступным аккаунтом; mock contract test не заменяет его.
 
-Клиентское отключение и транспортная отмена не отменяют уже принятую cloud job; явная cancel_job прекращает будущие шаги. Server-side cancellation/revoke проверяются независимо от online-статуса телефона.
+## Бюджет и границы
 
-## Бюджет
+Paid inference изначально выключен. До 40 пользовательских jobs/24 часа и 1200 output tokens на вызов — ограничения нагрузки, не monetary budget reservation. Входные tokens и повторы после аварии могут оплачиваться; расходы надо ограничить у провайдера до включения.
 
-Учитывать web/API, workers/scheduler, DB, storage/traffic, inference и внешние providers. Первый production план должен иметь лимиты per-user/per-task/global и видимые паузы. Без настроенного inference provider фоновые LLM-задачи не объявляются работающими.
+Учитывайте API, worker, scheduler, БД и inference. Render Blueprint использует платные компоненты; ресурсы ещё не созданы. Персональные billing limits, alerting и cost accounting остаются открытыми.
+
+Внешние отправки, банковские платежи, approvals, мандаты и OUTCOME_UNKNOWN для сторонних действий пока не реализованы. Их recovery/receipt/reconciliation policy нужно проверить до появления соответствующего executor.
