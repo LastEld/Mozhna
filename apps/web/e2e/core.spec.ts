@@ -20,6 +20,13 @@ test.beforeEach(async ({ request }) => {
   expect(erased.ok()).toBeTruthy();
 });
 
+test.afterEach(async ({ context }, info) => {
+  if (info.status === info.expectedStatus) return;
+  for (const current of context.pages()) {
+    console.log('Failure page:', await current.locator('body').innerText({timeout: 1000}).catch(() => 'unavailable'));
+  }
+});
+
 test("money, plan, observation, durable job, CSV and safe offline state", async ({
   page,
   context,
@@ -135,7 +142,9 @@ test("money, plan, observation, durable job, CSV and safe offline state", async 
   await expect(
     resumed.getByRole("status").filter({ hasText: "Немає з’єднання" }),
   ).toBeVisible();
-  await resumed.reload();
+  // Use the document's normal reload path, including its active service worker.
+  // The offline screen assertion below still fails if navigation cannot recover.
+  await resumed.evaluate(() => window.location.reload());
   await expect(
     resumed.getByRole("heading", { name: "Зараз немає з’єднання" }),
   ).toBeVisible();
