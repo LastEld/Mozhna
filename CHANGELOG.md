@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-07 — Alpha runtime
+
+- Реализованы Money, FastAPI auth/API, SQL jobs/worker/scheduler, Reduce/CSV/export и read-only remote MCP.
+- Добавлены React/Vite UI, generated OpenAPI types, Anthropic/Gemini adapters с mock tests.
+- Добавлены lockfiles, Alembic, Docker/Compose/Render и Runtime CI.
+- Полный cloud deployment, live providers и device QA ещё не выполнены; см. docs/IMPLEMENTATION.md.
+
 ## Unreleased
 
 ### Changed — cloud-first design

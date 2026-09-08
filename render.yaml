@@ -1,0 +1,69 @@
+# Paid reference deployment. Review Render's resource estimate before creating.
+# Model keys are optional and configured later on api + worker; inference starts off.
+services:
+  - type: web
+    name: mozhna-api
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    numInstances: 1
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    dockerCommand: uvicorn mozhna.main:app --host 0.0.0.0 --port 10000
+    preDeployCommand: alembic upgrade head
+    healthCheckPath: /healthz
+    autoDeployTrigger: off
+    envVars:
+      - key: MOZHNA_ENV
+        value: production
+      - key: MOZHNA_PASSWORD
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mozhna-db
+          property: connectionString
+      - key: MOZHNA_ALLOW_PAID_INFERENCE
+        value: 'false'
+      - key: MOZHNA_DAILY_JOB_LIMIT
+        value: '40'
+  - type: worker
+    name: mozhna-worker
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    numInstances: 1
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    dockerCommand: python -m mozhna.launch worker
+    autoDeployTrigger: off
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mozhna-db
+          property: connectionString
+      - key: MOZHNA_ALLOW_PAID_INFERENCE
+        value: 'false'
+  - type: worker
+    name: mozhna-scheduler
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    numInstances: 1
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    dockerCommand: python -m mozhna.launch scheduler
+    autoDeployTrigger: off
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mozhna-db
+          property: connectionString
+databases:
+  - name: mozhna-db
+    region: frankfurt
+    plan: 0.1c-256mb
+    diskSizeGB: 1
+    postgresMajorVersion: '17'
+    databaseName: mozhna
+    user: mozhna
+    ipAllowList: []

@@ -1,9 +1,9 @@
 # Адаптивный web-клиент
 
-Выбран TypeScript strict + React + Vite + CSS, PWA. Это единый клиент для браузеров ПК, Android, iPhone/iPad; native packaging позднее через Capacitor. Runtime ещё не создан.
+TypeScript strict, React, Vite и CSS. `pnpm install --frozen-lockfile`, `pnpm dev`; backend запустить отдельно по [RUNNING](../../docs/RUNNING.md). Production: `pnpm build`, затем backend обслуживает dist под тем же origin.
 
-Доменная арифметика выполняется Python backend. TypeScript API client генерируется из OpenAPI. Capability detection управляет camera/file picker, install, push и streaming; базовые сценарии работают без этих расширений.
+Пять экранов: деньги, планы, журнал/CSV, направления дохода, настройки/фоновые задачи. Украинский интерфейс, sidebar на ПК и нижняя навигация на телефоне. Суммы для финансовых решений и наблюдений считает сервер. API-типы генерируются `pnpm generate:api` из OpenAPI; `src/api.generated.ts` не редактируется вручную.
 
-Первый deployment отдаёт собранные assets под тем же origin, что API. Cloud job продолжается после закрытия вкладки; UI получает её по ID при возврате. Финансовые данные не кэшируются service worker по умолчанию.
+Polling и focus/reconnect обновляют состояние. Версии защищают изменения с разных устройств. Есть manifest; нет service worker, offline writes, push, native пакетов и заявленной real-device QA. Изолированный статический frontend без работающего API не является приложением.
 
-Будущие компоненты: auth, money, plans, jobs/inbox, settings; responsive layout и i18n. Manifest, service worker, package.json и pnpm-lock.yaml добавляются вместе с реальной сборкой. См. [CLIENTS](../../docs/CLIENTS.md) и [STACK](../../docs/STACK.md).
+[Состояние alpha](../../docs/IMPLEMENTATION.md), [стратегия устройств](../../docs/CLIENTS.md).

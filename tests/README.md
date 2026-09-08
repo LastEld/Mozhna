@@ -1,5 +1,5 @@
 # Проверки
 
-Runtime tests пока отсутствуют. `fixtures/money-cases.json` содержит синтетические примеры для будущего ядра по предлагаемому уточнению v2; это не реальные финансовые данные и не доказательство реализации.
+Runtime tests находятся в [services/backend/tests](../services/backend/tests): Money, API/ownership/versions, imports, jobs, schedules, provider contracts и настоящий MCP HTTP client. PostgreSQL concurrency test использует отдельную disposable DB в CI.
 
-При реализации добавить проверки денежных инвариантов, owner isolation, импорта и реального MCP-клиента по [VALIDATION](../docs/VALIDATION.md). Текущий `scripts/check_docs.py` проверяет лишь документацию и формат JSON.
+Команды и границы: [RUNNING](../docs/RUNNING.md), [IMPLEMENTATION](../docs/IMPLEMENTATION.md). Fixtures содержат только синтетические значения. Полевые проверки полезности и реальные устройства не тестировались.

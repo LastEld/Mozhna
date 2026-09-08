@@ -49,4 +49,4 @@ Baseline — банк/ручной импорт, калькулятор или �
 
 Для кода проверять реальную границу: API/MCP клиент, транзакция базы, adapter и worker там, где риск находится. Mock-only проверка хендлера не доказывает работающую интеграцию.
 
-Текущий CI проверяет только документы и формат fixtures. Счётчик продуктовых тестов сейчас равен нулю.
+Добавлен Runtime CI: pytest, PostgreSQL, реальный MCP HTTP client, migrations, frontend, drift и container smoke. Локальные backend tests и сборка frontend прошли; фактический результат CI следует проверять у соответствующего commit в Actions. Live model calls, browser/device QA и полевые продуктовые исследования не проводились. [Карта доказательств](IMPLEMENTATION.md).

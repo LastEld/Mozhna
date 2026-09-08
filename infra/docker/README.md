@@ -1,7 +1,5 @@
-# Container contract
+# Контейнер
 
-Один backend image: собранные React assets, Python API и код worker/scheduler. Multi-stage build отделяет Node/frontend build от Python runtime; service process выбирается реальным entrypoint после реализации.
+[Dockerfile](../../Dockerfile) собирает React на Node 24 и Python backend с frozen lockfile. Runtime работает непривилегированным пользователем. Один image используется для API, worker и scheduler. [compose.yaml](../../compose.yaml) добавляет PostgreSQL 17, release migration и persistent volume.
 
-Money не требует модели/сети. API liveness/readiness и worker/scheduler heartbeat проверяются отдельно. Filesystem контейнера временный; данные в PostgreSQL/object storage.
-
-Dockerfile, compose для local development и lockfiles добавляются в CLOUD-01 после проверяемого запуска, не как документационные заглушки. См. [STACK](../../docs/STACK.md).
+Инструкции: [RUNNING](../../docs/RUNNING.md). CI собирает image и проверяет health, frontend, защищённый API и Secure cookie. На локальном исполнителе Docker отсутствует; локальная успешная сборка Vite не подменяет проверку контейнера.

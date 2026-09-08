@@ -1,5 +1,7 @@
 # Адаптивные клиенты: ПК, Android, iPhone
 
+Alpha UI собран; manifest есть, offline/push/native и real-device QA отсутствуют. [Текущее состояние](IMPLEMENTATION.md).
+
 Статус: выбранная стратегия — один React/TypeScript PWA-клиент, cloud API и возможность Capacitor-пакетов позднее.
 
 ## Поддерживаемые поверхности

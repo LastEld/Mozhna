@@ -1,0 +1,73 @@
+name: Runtime
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: runtime-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-bookworm
+        env:
+          POSTGRES_DB: mozhna_test
+          POSTGRES_USER: mozhna_test
+          POSTGRES_PASSWORD: synthetic-ci-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mozhna_test -d mozhna_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+      - name: Install pinned package managers
+        run: |
+          python -m pip install uv==0.11.33
+          npm install --global pnpm@11.19.0
+      - name: Install backend
+        working-directory: services/backend
+        run: uv sync --frozen
+      - name: Migrations and backend tests, including PostgreSQL and remote MCP
+        working-directory: services/backend
+        env:
+          DATABASE_URL: postgresql+psycopg://mozhna_test:synthetic-ci-password@localhost:5432/mozhna_test
+          TEST_DATABASE_URL: postgresql+psycopg://mozhna_test:synthetic-ci-password@localhost:5432/mozhna_test
+        run: |
+          uv run --no-sync alembic upgrade head
+          uv run --no-sync alembic check
+          uv run --no-sync pytest -q
+      - name: Export OpenAPI
+        working-directory: services/backend
+        run: uv run --no-sync python ../../scripts/export_openapi.py
+      - name: Frontend and contract drift
+        working-directory: apps/web
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm generate:api
+          pnpm build
+          git diff --exit-code -- ../../packages/schemas/openapi.json src/api.generated.ts
+      - name: Build deployment image
+        run: docker build --tag mozhna:ci .
+      - name: Verify deployed image, migration and authentication
+        run: |
+          docker run --rm --network host -e DATABASE_URL=postgresql+psycopg://mozhna_test:synthetic-ci-password@localhost:5432/mozhna_test mozhna:ci alembic check
+          docker run --detach --name mozhna-smoke --network host -e DATABASE_URL=postgresql+psycopg://mozhna_test:synthetic-ci-password@localhost:5432/mozhna_test -e MOZHNA_ENV=production -e PUBLIC_ORIGIN=https://mozhna.test -e MOZHNA_PASSWORD=synthetic-ci-password mozhna:ci
+          python scripts/smoke_http.py
+      - name: Stop image
+        if: always()
+        run: docker rm --force mozhna-smoke || true

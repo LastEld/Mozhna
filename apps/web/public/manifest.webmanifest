@@ -1,0 +1,11 @@
+{
+  "name": "MOZHNA — Можна",
+  "short_name": "Можна",
+  "lang": "uk",
+  "id": "/",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f3f5f4",
+  "theme_color": "#101c1c",
+  "icons": [{"src":"/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any"}]
+}

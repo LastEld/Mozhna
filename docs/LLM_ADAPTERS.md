@@ -1,6 +1,6 @@
 # Адаптация к разным LLM
 
-Статус: выбранный контракт; adapters и live provider tests ещё не реализованы.
+Статус: выбранный контракт; Anthropic/Gemini adapters и mock contract tests реализованы; live tests, fallback и полный capability registry отсутствуют. [Alpha scope](IMPLEMENTATION.md).
 
 ## Две разные совместимости
 

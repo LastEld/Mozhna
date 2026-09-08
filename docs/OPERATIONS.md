@@ -1,6 +1,6 @@
 # Эксплуатация облачного приложения
 
-Статус: требования и план; runtime/hosting ещё не созданы. Target описан в [DEPLOYMENT](DEPLOYMENT.md).
+Статус: требования и план; runtime создан, hosting ещё не развёрнут. Это целевые требования; фактический scope — в [IMPLEMENTATION](IMPLEMENTATION.md). Target описан в [DEPLOYMENT](DEPLOYMENT.md).
 
 ## Долговечность
 

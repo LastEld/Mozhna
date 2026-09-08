@@ -1,9 +1,9 @@
-# Облачный backend
+# Backend alpha
 
-Выбраны Python + FastAPI + Pydantic + SQLAlchemy + Alembic + PostgreSQL. Один image запускает разные процессы api, worker и scheduler. Runtime, entrypoints и uv.lock появятся вместе с первым кодом.
+Python 3.12, FastAPI, SQLAlchemy/Alembic, PostgreSQL для облака, SQLite для разработки. Установка `uv sync --frozen`. Проверки `uv run pytest -q`.
 
-Внутренние модули: money, evidence, plans, actions, connections, model_providers, jobs. Money живёт в domain, не импортирует сеть/LLM/UI. API и remote MCP используют одинаковые application services и policy.
+Процессы: `uv run uvicorn mozhna.main:app`, `uv run python -m mozhna.worker`, `uv run python -m mozhna.scheduler`. Перед production запустить `uv run alembic upgrade head`. Полная конфигурация и рабочие папки: [RUNNING](../../docs/RUNNING.md).
 
-JobStore/PostgreSQL обеспечивает долговечное исполнение; ModelProvider изолирует API разных LLM. Изолированный executor добавляется для внешних действий и хранит минимум разрешённых sessions.
+Модули: money — чистое ядро; main — cookie auth и API; db — records/sessions/jobs/schedules; jobs/worker/scheduler — долговечные задачи; providers — Anthropic/Gemini; mcp_server — read-only remote tools; imports — CSV. Отдельного action executor нет.
 
-Контракты: [ARCHITECTURE](../../docs/ARCHITECTURE.md), [CLOUD_EXECUTION](../../docs/CLOUD_EXECUTION.md), [LLM_ADAPTERS](../../docs/LLM_ADAPTERS.md).
+OpenAPI генерируется `uv run python ../../scripts/export_openapi.py`. CLI и CI используют те же сервисы и модели. [Состояние](../../docs/IMPLEMENTATION.md), [финансовая policy](../../docs/MONEY.md).

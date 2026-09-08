@@ -1,7 +1,5 @@
 # Общие контракты
 
-Backend/Pydantic — канонические схемы; OpenAPI/JSON Schema и generated TypeScript client появляются здесь при первом API. Money Kernel остаётся внутри Python backend domain и не копируется в TypeScript.
+[schemas/openapi.json](schemas/openapi.json) генерируется из FastAPI/Pydantic скриптом [export_openapi.py](../scripts/export_openapi.py). TypeScript-типы находятся в apps/web/src/api.generated.ts. Runtime CI проверяет drift.
 
-Папки api-client и schemas создаются при генерации, когда существует проверенный source schema. CI проверяет drift. Отдельный package для каждой возможности не нужен.
-
-Общая UI-логика остаётся apps/web и повторно используется Capacitor; device-specific plugin изолируется только по реальной необходимости. См. [STACK](../docs/STACK.md).
+Money остаётся внутренним Python-модулем; отдельного дублирующего npm Money Kernel нет.

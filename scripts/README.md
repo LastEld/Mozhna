@@ -1,5 +1,7 @@
 # Скрипты
 
-`python3 scripts/check_docs.py` — проверка обязательных файлов, относительных ссылок на файлы в Markdown и JSON fixtures. Используется локально и в GitHub Actions, только Python standard library.
+- `python3 scripts/check_docs.py` — обязательные документы, относительные файловые ссылки и синтаксис JSON. Не проверяет внешние сайты и Markdown anchors.
+- `uv run python ../../scripts/export_openapi.py` из services/backend — генерация OpenAPI без подключения БД/моделей.
+- `python scripts/smoke_http.py` — только для изолированного синтетического CI-контейнера; health, frontend, auth boundary и cookie.
 
-Проверка не обходит внешние сайты, не проверяет Markdown anchors и не исполняет денежный расчёт. Продуктовые тесты появятся вместе с runtime.
+Runtime tests: [services/backend/tests](../services/backend/tests). Генерация TypeScript: `pnpm generate:api` из apps/web.

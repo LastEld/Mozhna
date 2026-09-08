@@ -1,0 +1,1 @@
+"""MOZHNA cloud application."""

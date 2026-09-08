@@ -1,0 +1,59 @@
+name: mozhna
+x-runtime: &runtime
+  build: .
+  image: mozhna:local
+  env_file: .env
+  environment: &environment
+    DATABASE_URL: postgresql+psycopg://mozhna:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/mozhna
+    MOZHNA_PASSWORD: ${MOZHNA_PASSWORD:?Set MOZHNA_PASSWORD in .env}
+    MOZHNA_ENV: development
+    PUBLIC_ORIGIN: http://localhost:8000
+  restart: unless-stopped
+services:
+  db:
+    image: postgres:17-bookworm
+    environment:
+      POSTGRES_DB: mozhna
+      POSTGRES_USER: mozhna
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U mozhna -d mozhna']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+  migrate:
+    <<: *runtime
+    restart: 'no'
+    command: [alembic, upgrade, head]
+    depends_on:
+      db:
+        condition: service_healthy
+  api:
+    <<: *runtime
+    ports:
+      - '127.0.0.1:8000:8000'
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz')"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+  worker:
+    <<: *runtime
+    command: [python, -m, mozhna.worker]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+  scheduler:
+    <<: *runtime
+    command: [python, -m, mozhna.scheduler]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+volumes:
+  postgres-data:
