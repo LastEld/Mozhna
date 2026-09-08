@@ -6,7 +6,7 @@
 - Добавлены проверка production schema readiness, лимит размера тела запроса и завершение worker/scheduler по SIGTERM без следующего запуска.
 - Добавлены карантин после restore и PostgreSQL dump/restore test в CI.
 - Исправлены точность клиентских cents, конфликт открытой формы snapshot, обновление после reconnect и повторная запись при ошибке refresh.
-- Добавлены публичная offline-страница, Vitest и Playwright CI для desktop/Android/iPhone эмуляции; runtime verify прошёл (65 backend и 10 frontend tests), браузерный gate ещё выполняется.
+- Добавлены публичная offline-страница, Vitest и Playwright CI для desktop/Android/iPhone эмуляции; runtime verify прошёл (65 backend и 10 frontend tests), Chromium offline проверен, WebKit offline reload остаётся открытым (`WEBKIT-OFFLINE-01`).
 - Deployment, облачный restore, настоящие устройства и live provider calls остаются открытыми.
 
 ## 2026-09-07 — Alpha runtime

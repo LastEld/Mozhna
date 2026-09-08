@@ -6,6 +6,6 @@ TypeScript strict, React, Vite и CSS. `pnpm install --frozen-lockfile`, `pnpm d
 
 Polling и focus/reconnect обновляют состояние. Открытая форма сохраняет исходную версию snapshot: чужое обновление приводит к конфликту вместо тихой перезаписи. Суммы разбираются и форматируются точно в целых cents. Есть manifest и service worker только для публичной offline-страницы; финансовый cache, offline writes, push, native пакеты отсутствуют. Real-device QA ещё не выполнена. Изолированный статический frontend без работающего API не является приложением.
 
-`pnpm test` проверяет денежный ввод и форматирование. `pnpm test:e2e` запускает Playwright против отдельного синтетического API/worker: Desktop Chrome, Pixel 7/Chromium и iPhone 13/WebKit. Требуются собранный frontend, установленный backend и браузеры Playwright; команды — в [RUNNING](../../docs/RUNNING.md). Успех нового browser CI ещё должен быть подтверждён.
+`pnpm test` проверяет денежный ввод и форматирование. `pnpm test:e2e` запускает Playwright против отдельного синтетического API/worker: Desktop Chrome, Pixel 7/Chromium и iPhone 13/WebKit. Требуются собранный frontend, установленный backend и браузеры Playwright; команды — в [RUNNING](../../docs/RUNNING.md). Offline reload WebKit воспроизводимо не проходит и отмечен ожидаемым сбоем `WEBKIT-OFFLINE-01`; остальные сценарии проверяются отдельно. Это не доказательство готовности iPhone offline.
 
 [Состояние alpha](../../docs/IMPLEMENTATION.md), [стратегия устройств](../../docs/CLIENTS.md).

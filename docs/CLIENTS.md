@@ -48,4 +48,12 @@ Service-worker update не перезагружает форму approval авт
 
 ## Проверка устройств
 
-Текущий CI содержит Playwright tests для Desktop Chrome, Pixel 7/Chromium и iPhone 13/WebKit; их новый прогон пока не подтверждён. Firefox остаётся целевым дополнительным покрытием. Release gate отдельно включает настоящий iPhone/Safari и Android/Chrome: login, камера/выбор фото, safe areas, клавиатура, background/resume, PWA install и notification permission. Эмуляция WebKit в CI не объявляется полной проверкой iPhone.
+Текущий CI содержит Playwright tests для Desktop Chrome, Pixel 7/Chromium и iPhone 13/WebKit; Chromium прошёл полный цикл с offline reload, WebKit — шаги до перезагрузки и отдельный конфликт snapshot. Offline reload WebKit остаётся открытым. Firefox остаётся целевым дополнительным покрытием. Release gate отдельно включает настоящий iPhone/Safari и Android/Chrome: login, камера/выбор фото, safe areas, клавиатура, background/resume, PWA install и notification permission. Эмуляция WebKit в CI не объявляется полной проверкой iPhone.
+
+## WEBKIT-OFFLINE-01 — открытое ограничение
+
+На Playwright 1.63 / Linux WebKit 26.6 после `context.setOffline(true)` вызов `page.reload()` возвращает internal error. Замена на `location.reload()` также не показывает публичную offline-страницу. Регистрация service worker и controller подтверждены; изменение способа возврата cached Response сбой не устранило. [Воспроизводящий CI](https://github.com/LastEld/Mozhna/actions/runs/34275211046/job/102226416592).
+
+[Документация Playwright](https://playwright.dev/docs/service-workers) ограничивает поддержку service workers Chromium. Точная причина этого сбоя не установлена; это не подтверждённая неисправность настоящего Safari и не доказательство его исправности. До проверки на устройстве iPhone offline reload не объявляется работающим.
+
+Тест сохранён отдельно и исполняется. Отметка `test.fail` действует только после успешной подготовки/входа/проверки публичного кэша, непосредственно перед offline reload в WebKit. Неожиданный успех делает CI красным, чтобы отметку пересмотрели. Остальные деньги/планы/jobs/CSV/reconnect/conflict tests не имеют этой отметки. Зелёный CI с ожидаемым сбоем не закрывает данный release gate.
