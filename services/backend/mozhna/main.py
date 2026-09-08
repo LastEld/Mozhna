@@ -1,7 +1,8 @@
 """MOZHNA single-owner alpha. Cloud API with persistent jobs and explicit limits."""
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlparse
 import hashlib
 import hmac
 import json
@@ -14,9 +15,9 @@ from fastapi import FastAPI, Depends, HTTPException, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select, update, delete, func
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
-from .db import Base, Record, LoginSession, Job, Schedule, connect, timestamp
+from .db import Base, Record, LoginSession, Job, Schedule, connect, timestamp, lock_owner
 from .money import MoneySnapshot, evaluate
 from .schemas import (Login, SnapshotUpdate, Simulation, PlanCreate, PlanChange,
                       Observation, TransactionCreate, ImportRequest, JobCreate, Erase)
@@ -26,12 +27,59 @@ from .imports import parse_csv
 from .providers import provider_status
 
 
+
+class RequestBodyLimit:
+    """Bound API/MCP bytes before either JSON parser, including chunked bodies."""
+    def __init__(self, app, max_bytes=2_500_000):
+        self.app, self.max_bytes = app, max_bytes
+
+    async def __call__(self, scope, receive, send):
+        path = scope.get('path', '')
+        if scope['type'] != 'http' or not (path.startswith('/api/') or path == '/mcp' or path.startswith('/mcp/')):
+            return await self.app(scope, receive, send)
+        size, chunks = 0, []
+        while True:
+            message = await receive()
+            if message['type'] == 'http.disconnect':
+                return
+            chunk = message.get('body', b'')
+            size += len(chunk)
+            if size > self.max_bytes:
+                response = JSONResponse({'detail':'Request too large'}, status_code=413,
+                    headers={'Cache-Control':'no-store'})
+                return await response(scope, receive, send)
+            chunks.append(chunk)
+            if not message.get('more_body', False):
+                break
+        buffered = b''.join(chunks)
+        delivered = False
+
+        async def replay():
+            nonlocal delivered
+            if not delivered:
+                delivered = True
+                return {'type':'http.request', 'body':buffered, 'more_body':False}
+            return await receive()
+
+        await self.app(scope, replay, send)
+
 def create_app(database_url=None):
     engine, factory = connect(database_url)
     production = os.getenv('MOZHNA_ENV', 'development') == 'production'
     password = os.getenv('MOZHNA_PASSWORD', '')
     owner = os.getenv('MOZHNA_OWNER_ID', 'owner')
     origin = os.getenv('PUBLIC_ORIGIN', os.getenv('RENDER_EXTERNAL_URL', '')).rstrip('/')
+    if production:
+        try:
+            parsed = urlparse(origin)
+            valid_origin = (parsed.scheme == 'https' and bool(parsed.hostname)
+                and parsed.username is None and parsed.password is None
+                and not parsed.path and not parsed.query and not parsed.fragment)
+            parsed.port  # Reject invalid port syntax before constructing services.
+        except ValueError:
+            valid_origin = False
+        if len(password) < 16 or not valid_origin:
+            raise RuntimeError('Production requires MOZHNA_PASSWORD >=16 characters and a valid HTTPS PUBLIC_ORIGIN')
     mcp_token = os.getenv('MOZHNA_MCP_TOKEN', '')
     if mcp_token and len(mcp_token) < 32:
         raise RuntimeError('MOZHNA_MCP_TOKEN must contain at least 32 characters')
@@ -39,7 +87,6 @@ def create_app(database_url=None):
     if mcp_token:
         from .mcp_server import build_mcp
         from mcp.server.transport_security import TransportSecuritySettings
-        from urllib.parse import urlparse
         hosts = ['127.0.0.1:*', 'localhost:*', 'testserver']
         if origin:
             hosts.append(urlparse(origin).netloc)
@@ -47,8 +94,6 @@ def create_app(database_url=None):
             streamable_http_path='/', json_response=True, stateless_http=True,
             transport_security=TransportSecuritySettings(allowed_hosts=hosts,
                 allowed_origins=[origin] if origin else ['http://127.0.0.1:*','http://localhost:*']))
-    if production and (len(password) < 16 or not origin.startswith('https://')):
-        raise RuntimeError('Production requires MOZHNA_PASSWORD >=16 characters and HTTPS PUBLIC_ORIGIN')
 
     @asynccontextmanager
     async def lifespan(app):
@@ -63,9 +108,9 @@ def create_app(database_url=None):
 
     app = FastAPI(title='MOZHNA API', version='0.1.0', lifespan=lifespan,
                   docs_url=None if production else '/docs', redoc_url=None)
+    app.add_middleware(RequestBodyLimit)
     app.state.factory = factory
     app.state.engine = engine
-    attempts = {}
 
     @app.middleware('http')
     async def boundaries(request, call_next):
@@ -102,11 +147,22 @@ def create_app(database_url=None):
         digest = hashlib.sha256(token.encode()).hexdigest()
         with factory() as db:
             session = db.get(LoginSession, digest)
-            if not session or session.expires_at < time.time():
+            if not session or session.owner_id != owner or session.expires_at <= time.time():
                 raise HTTPException(401, 'Session expired')
-            if request.method not in ('GET', 'HEAD') and not hmac.compare_digest(request.headers.get('x-csrf-token', ''), session.csrf):
+            if request.method not in ('GET', 'HEAD') and not hmac.compare_digest(request.headers.get('x-csrf-token', '').encode(), session.csrf.encode()):
                 raise HTTPException(403, 'CSRF token required')
             return {'owner_id': session.owner_id, 'csrf_token': session.csrf, 'token_hash': digest}
+
+    @contextmanager
+    def authorized_write(auth):
+        # Serialize with erase/logout and revalidate within the write transaction.
+        # A dependency-only check permits paused requests to recreate erased data.
+        with factory.begin() as db:
+            lock_owner(db, auth['owner_id'])
+            session = db.get(LoginSession, auth['token_hash'])
+            if not session or session.owner_id != auth['owner_id'] or session.expires_at <= time.time():
+                raise HTTPException(401, 'Session expired')
+            yield db
 
     def record(db, record_id, kind, auth):
         item = db.get(Record, record_id)
@@ -131,30 +187,49 @@ def create_app(database_url=None):
 
     @app.get('/healthz')
     def health():
-        from sqlalchemy import text
-        with engine.connect() as db:
-            db.execute(text('SELECT 1'))
+        try:
+            with engine.connect() as db:
+                # A reachable, unmigrated DB cannot serve the app. Probe required
+                # columns without returning any stored rows.
+                for table in Base.metadata.sorted_tables:
+                    db.execute(select(table).limit(0))
+                if production:
+                    from alembic.migration import MigrationContext
+                    from alembic.script import ScriptDirectory
+                    expected = ScriptDirectory(str(Path(__file__).resolve().parents[1]/'migrations')).get_heads()
+                    if set(MigrationContext.configure(db).get_current_heads()) != set(expected):
+                        raise HTTPException(503, 'Database migrations required')
+        except SQLAlchemyError:
+            raise HTTPException(503, 'Database schema is not ready') from None
         return {'status': 'ok', 'version': '0.1.0'}
 
     @app.post('/api/v1/auth/login', response_model=AuthView)
     def login(body: Login, request: Request, response: Response):
         if not password:
             raise HTTPException(503, 'Owner password is not configured')
-        address = request.client.host if request.client else 'unknown'
         now = time.time()
-        recent = [t for t in attempts.get(address, []) if t > now-300]
-        if len(recent) >= 8:
-            raise HTTPException(429, 'Try again in five minutes')
-        if len(attempts) > 10000:
-            attempts.clear()
-        attempts[address] = recent+[now]
-        if not hmac.compare_digest(hashlib.sha256(body.password.encode()).digest(), hashlib.sha256(password.encode()).digest()):
-            raise HTTPException(401, 'Incorrect password')
-        attempts.pop(address, None)
+        correct = hmac.compare_digest(hashlib.sha256(body.password.encode()).digest(), hashlib.sha256(password.encode()).digest())
         token, csrf = secrets.token_urlsafe(40), secrets.token_urlsafe(32)
+        throttled = False
+        retry_after = 300
         with factory.begin() as db:
-            db.add(LoginSession(token_hash=hashlib.sha256(token.encode()).hexdigest(),
-                                csrf=csrf, owner_id=owner, expires_at=now+43200))
+            state = lock_owner(db, owner)
+            if now >= state.window_started+300:
+                state.window_started, state.login_failures = now, 0
+            if state.login_failures >= 8:
+                throttled = True
+                retry_after = max(1, int(state.window_started+300-now)+1)
+            elif not correct:
+                state.login_failures += 1
+            else:
+                state.login_failures = 0
+                db.add(LoginSession(token_hash=hashlib.sha256(token.encode()).hexdigest(),
+                    csrf=csrf, owner_id=owner, expires_at=now+43200))
+        # Errors are raised after commit so failures survive process restarts.
+        if throttled:
+            raise HTTPException(429, 'Try again after the login cooldown', headers={'Retry-After':str(retry_after)})
+        if not correct:
+            raise HTTPException(401, 'Incorrect password')
         response.set_cookie('mozhna_session', token, httponly=True, secure=production,
                             samesite='strict', max_age=43200, path='/')
         return {'user': {'id': owner, 'name': 'Мій простір'}, 'csrf_token': csrf}
@@ -165,7 +240,7 @@ def create_app(database_url=None):
 
     @app.post('/api/v1/auth/logout')
     def logout(response: Response, auth=Depends(authenticate)):
-        with factory.begin() as db:
+        with authorized_write(auth) as db:
             db.execute(delete(LoginSession).where(LoginSession.token_hash == auth['token_hash']))
         response.delete_cookie('mozhna_session', path='/')
         return {'ok': True}
@@ -178,7 +253,7 @@ def create_app(database_url=None):
     @app.put('/api/v1/snapshot', response_model=SnapshotView)
     def set_snapshot(body: SnapshotUpdate, auth=Depends(authenticate)):
         key = 'snapshot:'+auth['owner_id']
-        with factory.begin() as db:
+        with authorized_write(auth) as db:
             item = db.get(Record, key)
             if item:
                 changed = db.execute(update(Record).where(Record.id == key, Record.owner_id == auth['owner_id'], Record.version == body.expected_version)
@@ -216,14 +291,14 @@ def create_app(database_url=None):
         data.update(status='proposed', observations=[], scenario_savings_minor=potential,
                     first_month_savings_minor=potential-body.setup_cost_minor)
         item = Record(id=uuid.uuid4().hex, owner_id=auth['owner_id'], kind='plan', data=data)
-        with factory.begin() as db:
+        with authorized_write(auth) as db:
             db.add(item)
             db.flush()
             return view(item)
 
     @app.patch('/api/v1/plans/{plan_id}', response_model=PlanView)
     def change_plan(plan_id: str, body: PlanChange, auth=Depends(authenticate)):
-        with factory.begin() as db:
+        with authorized_write(auth) as db:
             item = record(db, plan_id, 'plan', auth)
             data = {**item.data, 'status': body.status, 'rejection_reason': body.rejection_reason}
             count = db.execute(update(Record).where(Record.id == plan_id, Record.version == body.expected_version)
@@ -235,7 +310,7 @@ def create_app(database_url=None):
 
     @app.post('/api/v1/plans/{plan_id}/observations', response_model=PlanView)
     def add_observation(plan_id: str, body: Observation, auth=Depends(authenticate)):
-        with factory.begin() as db:
+        with authorized_write(auth) as db:
             item = record(db, plan_id, 'plan', auth)
             if item.data['status'] != 'active':
                 raise HTTPException(409, 'Activate the plan before recording results')
@@ -261,7 +336,7 @@ def create_app(database_url=None):
     @app.post('/api/v1/transactions', status_code=201, response_model=TransactionView)
     def add_transaction(body: TransactionCreate, auth=Depends(authenticate)):
         item = Record(id=uuid.uuid4().hex, owner_id=auth['owner_id'], kind='transaction', data=body.model_dump(mode='json'))
-        with factory.begin() as db:
+        with authorized_write(auth) as db:
             db.add(item)
             db.flush()
             return view(item)
@@ -273,7 +348,7 @@ def create_app(database_url=None):
         except ValueError as exc:
             raise HTTPException(422, str(exc)[:400]) from None
         added = skipped = 0
-        with factory.begin() as db:
+        with authorized_write(auth) as db:
             for data in rows:
                 key = hashlib.sha256((auth['owner_id']+':csv:'+data.pop('source_key')).encode()).hexdigest()
                 if db.get(Record, key):
@@ -306,14 +381,12 @@ def create_app(database_url=None):
             raise HTTPException(422, 'Profile facts and job description required')
         elif body.kind == 'income_search' and not body.payload.get('role'):
             raise HTTPException(422, 'Role required')
-        with factory.begin() as db:
+        with authorized_write(auth) as db:
             old = db.scalar(select(Job).where(Job.owner_id == auth['owner_id'], Job.idempotency_key == body.idempotency_key))
             if old:
                 if (old.payload, old.kind, old.provider) != (body.payload, body.kind, body.provider):
                     raise HTTPException(409, 'Idempotency key already used for another command')
                 return job_dict(old)
-            # Owner row lock serializes quota allocation for PostgreSQL.
-            db.scalars(select(LoginSession).where(LoginSession.owner_id == auth['owner_id']).with_for_update()).all()
             cutoff = datetime.fromtimestamp(time.time()-86400, timezone.utc).isoformat()
             count = db.scalar(select(func.count()).select_from(Job).where(Job.owner_id == auth['owner_id'], Job.created_at >= cutoff))
             if count >= int(os.getenv('MOZHNA_DAILY_JOB_LIMIT','40')):
@@ -343,7 +416,7 @@ def create_app(database_url=None):
 
     @app.post('/api/v1/jobs/{job_id}/cancel', response_model=JobView)
     def cancel_job(job_id: str, auth=Depends(authenticate)):
-        with factory.begin() as db:
+        with authorized_write(auth) as db:
             item = db.get(Job, job_id)
             if not item or item.owner_id != auth['owner_id']:
                 raise HTTPException(404, 'Not found')
@@ -366,8 +439,7 @@ def create_app(database_url=None):
 
     @app.post('/api/v1/schedules', status_code=201, response_model=ScheduleView)
     def add_schedule(body: ScheduleCreate, auth=Depends(authenticate)):
-        with factory.begin() as db:
-            db.scalars(select(LoginSession).where(LoginSession.owner_id == auth['owner_id']).with_for_update()).all()
+        with authorized_write(auth) as db:
             plan = record(db, body.plan_id, 'plan', auth)
             if plan.data['status'] != 'active':
                 raise HTTPException(409, 'Only active plans can be scheduled')
@@ -388,7 +460,7 @@ def create_app(database_url=None):
 
     @app.delete('/api/v1/schedules/{schedule_id}')
     def remove_schedule(schedule_id: str, auth=Depends(authenticate)):
-        with factory.begin() as db:
+        with authorized_write(auth) as db:
             db.execute(delete(Schedule).where(Schedule.id == schedule_id, Schedule.owner_id == auth['owner_id']))
         return {'deleted':True}
 
@@ -403,7 +475,7 @@ def create_app(database_url=None):
 
     @app.delete('/api/v1/data')
     def erase(body: Erase, response: Response, auth=Depends(authenticate)):
-        with factory.begin() as db:
+        with authorized_write(auth) as db:
             db.execute(delete(Schedule).where(Schedule.owner_id == auth['owner_id']))
             db.execute(delete(Job).where(Job.owner_id == auth['owner_id']))
             db.execute(delete(Record).where(Record.owner_id == auth['owner_id']))

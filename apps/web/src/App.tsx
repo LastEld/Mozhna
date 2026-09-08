@@ -206,7 +206,10 @@ export default function App() {
       new CustomEvent("operation-error", { detail: message }),
     );
   };
+  const loadGeneration = useRef(0);
+  const mutationInFlight = useRef(false);
   async function load() {
+    const generation = ++loadGeneration.current;
     const [s, p, t, j, pr, sc] = await Promise.all([
       api<SnapshotView>("/snapshot"),
       api<{ items: Plan[] }>("/plans"),
@@ -215,6 +218,7 @@ export default function App() {
       api<ProviderState>("/providers"),
       api<{ items: Schedule[] }>("/schedules"),
     ]);
+    if (generation !== loadGeneration.current) return;
     setSnapshot(s);
     setPlans(p.items);
     setTransactions(t.items);
@@ -231,6 +235,10 @@ export default function App() {
       .catch(() => {})
       .finally(() => setReady(true));
     const expire = () => {
+      loadGeneration.current += 1;
+      setModal(null);
+      setObservation(null);
+      setSchedules([]);
       setUser(null);
       setSnapshot({ version: 0, snapshot: null, calculation: null });
       setPlans([]);
@@ -252,9 +260,12 @@ export default function App() {
     if (!user) return;
     load().catch(fail);
     const timer = setInterval(() => {
+      const generation = loadGeneration.current;
       if (navigator.onLine)
         api<{ items: Job[] }>("/jobs")
-          .then((r) => setJobs(r.items))
+          .then((r) => {
+            if (generation === loadGeneration.current) setJobs(r.items);
+          })
           .catch(() => {});
     }, 5000);
     return () => clearInterval(timer);
@@ -266,9 +277,11 @@ export default function App() {
     };
     const timer = setInterval(refresh, 60000);
     window.addEventListener("focus", refresh);
+    window.addEventListener("online", refresh);
     return () => {
       clearInterval(timer);
       window.removeEventListener("focus", refresh);
+      window.removeEventListener("online", refresh);
     };
   }, [user]);
   useEffect(() => {
@@ -278,24 +291,38 @@ export default function App() {
     }
   }, [notice]);
   async function action(work: () => Promise<unknown>, message = "Збережено") {
+    if (mutationInFlight.current) return false;
+    mutationInFlight.current = true;
     setBusy(true);
     setError("");
     try {
-      await work();
-      await load();
+      try {
+        await work();
+      } catch (e) {
+        fail(e);
+        await load().catch(() => {});
+        return false;
+      }
       setNotice(message);
+      // A failed refresh must not make a committed mutation look unsuccessful.
+      await load().catch(() =>
+        setError(
+          "Збережено, але оновити екран не вдалося. Оновіть сторінку; повторювати запис не потрібно.",
+        ),
+      );
       return true;
-    } catch (e) {
-      fail(e);
-      await load().catch(() => {});
-      return false;
     } finally {
+      mutationInFlight.current = false;
       setBusy(false);
     }
   }
   async function logout() {
     try {
       await api("/auth/logout", "POST");
+      loadGeneration.current += 1;
+      setModal(null);
+      setObservation(null);
+      setSchedules([]);
       setCsrf("");
       setUser(null);
       setPlans([]);
@@ -1244,7 +1271,10 @@ export default function App() {
               setBusy(true);
               try {
                 await api("/data", "DELETE", { confirmation: "DELETE" });
+                loadGeneration.current += 1;
                 setModal(null);
+                setObservation(null);
+                setSchedules([]);
                 setUser(null);
                 setCsrf("");
                 setSnapshot({ version: 0, snapshot: null, calculation: null });
@@ -1357,6 +1387,7 @@ function SnapshotEditor({
   onClose: () => void;
   onSave: (s: Schema["SnapshotUpdate"]) => Promise<void>;
 }) {
+  const [editingVersion] = useState(version);
   const [balance, setBalance] = useState(euros(value?.balance_minor)),
     [reserve, setReserve] = useState(euros(value?.reserve_minor) || "0"),
     [goal, setGoal] = useState(euros(value?.goal_minor) || "0"),
@@ -1496,7 +1527,7 @@ function SnapshotEditor({
         due_date: f.due_date,
       });
       await onSave({
-        expected_version: version,
+        expected_version: editingVersion,
         snapshot: {
           balance_minor: cents(balance),
           currency: "EUR",
@@ -1522,6 +1553,7 @@ function SnapshotEditor({
   return (
     <Modal title="Мої кошти та зобов’язання" onClose={onClose}>
       <p>
+        Якщо дані змінено на іншому пристрої, закрийте й відкрийте форму знову.
         Внесіть власні кошти без кредитного ліміту. Уже оплачені витрати не
         додавайте вдруге.
       </p>

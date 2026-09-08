@@ -48,24 +48,35 @@ export async function api<T>(
   return data as T;
 }
 
-export const money = (minor: number | null | undefined) =>
-  minor == null
-    ? "—"
-    : new Intl.NumberFormat("uk-UA", {
-        style: "currency",
-        currency: "EUR",
-        maximumFractionDigits: 2,
-      }).format(minor / 100);
-export const euros = (minor: number | null | undefined) =>
-  minor == null ? "" : (minor / 100).toFixed(2);
+export const money = (minor: number | null | undefined) => {
+  if (minor == null || !Number.isSafeInteger(minor)) return "—";
+  const value = BigInt(minor);
+  const whole = value / 100n;
+  const fraction = (value < 0n ? -value : value) % 100n;
+  return new Intl.NumberFormat("uk-UA", { style: "currency", currency: "EUR" })
+    .formatToParts(minor < 0 && whole === 0n ? -0 : whole)
+    .map((part) =>
+      part.type === "fraction"
+        ? fraction.toString().padStart(2, "0")
+        : part.value,
+    )
+    .join("");
+};
+export const euros = (minor: number | null | undefined) => {
+  if (minor == null || !Number.isSafeInteger(minor)) return "";
+  const value = BigInt(minor);
+  const absolute = value < 0n ? -value : value;
+  return `${minor < 0 ? "-" : ""}${absolute / 100n}.${(absolute % 100n).toString().padStart(2, "0")}`;
+};
 export function cents(value: string): number {
   const clean = value.trim().replace(",", ".");
   if (!/^-?\d+(\.\d{1,2})?$/.test(clean))
     throw new Error("Введіть суму з максимум двома цифрами після коми.");
   const negative = clean.startsWith("-");
   const [whole, fraction = ""] = clean.replace("-", "").split(".");
-  const result = Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
-  if (!Number.isSafeInteger(result)) throw new Error("Сума завелика.");
-  return negative ? -result : result;
+  const result = BigInt(whole) * 100n + BigInt(fraction.padEnd(2, "0"));
+  if (result > BigInt(Number.MAX_SAFE_INTEGER))
+    throw new Error("Сума завелика.");
+  return Number(negative ? -result : result);
 }
 export const today = () => new Date().toISOString().slice(0, 10);

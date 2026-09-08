@@ -22,6 +22,33 @@ class Record(Base):
     created_at: Mapped[str] = mapped_column(String(40), default=timestamp)
 
 
+class OwnerState(Base):
+    """Durable serialization point and global login budget for one configured owner."""
+    __tablename__ = 'owner_state'
+    owner_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    revision: Mapped[int] = mapped_column(Integer, default=0)
+    login_failures: Mapped[int] = mapped_column(Integer, default=0)
+    window_started: Mapped[float] = mapped_column(Float, default=0)
+
+
+def lock_owner(db, owner_id):
+    # A real UPDATE takes a write lock on SQLite and a row lock on PostgreSQL.
+    # Acquire before reads to avoid stale snapshots and SQLite lock upgrades.
+    dialect = db.get_bind().dialect.name
+    if dialect == 'postgresql':
+        from sqlalchemy.dialects.postgresql import insert
+    elif dialect == 'sqlite':
+        from sqlalchemy.dialects.sqlite import insert
+    else:
+        raise RuntimeError('Unsupported database dialect')
+    from sqlalchemy import update
+    db.execute(insert(OwnerState).values(owner_id=owner_id, revision=0,
+        login_failures=0, window_started=0).on_conflict_do_nothing(index_elements=['owner_id']))
+    db.execute(update(OwnerState).where(OwnerState.owner_id == owner_id)
+        .values(revision=OwnerState.revision+1))
+    return db.get(OwnerState, owner_id)
+
+
 class LoginSession(Base):
     __tablename__ = 'sessions'
     token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
