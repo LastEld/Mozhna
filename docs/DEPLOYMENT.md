@@ -1,32 +1,36 @@
-# Облачный запуск
+# Бесплатный тестовый запуск
 
-Подготовлены [Dockerfile](../Dockerfile), [compose.yaml](../compose.yaml), [render.yaml](../render.yaml) и Alembic. Ресурсы пока не созданы: нет размещённого URL, provider keys или подтверждённого бюджета. [Состояние alpha](IMPLEMENTATION.md).
+Владелец подтвердил `My Workspace` в Render и бюджет **€0** на время тестирования. Корневой [render.yaml](../render.yaml) содержит только Free-ресурсы. Платная прежняя конфигурация заменена; она не создавалась. Реального размещённого URL пока нет.
 
-## Render
+## Топология
 
-Blueprint создаёт web API со статическим React, два background workers (исполнитель и scheduler) и PostgreSQL 17 в Frankfurt. БД не открыта публичному интернету. Выбраны starter services и минимальный платный database plan; фактическую стоимость показывает Render перед созданием. Автоматическое развёртывание последующих commits выключено (`autoDeployTrigger: off`). Формат сверён с [официальной спецификацией Render](https://render.com/docs/blueprint-spec).
+Один Free web service на Python собирает React и запускает API, worker и scheduler отдельными процессами под [free_runtime.py](../services/backend/mozhna/free_runtime.py). Все используют одну Free PostgreSQL 17 в Frankfurt. Jobs остаются в БД; они не являются HTTP background tasks. Сбой одного процесса завершает весь экземпляр, чтобы Render мог его перезапустить. Перед стартом процессов выполняется Alembic migration; платного pre-deploy hook нет.
 
-1. Подтвердите workspace в Render connector: доступен `My Workspace`, но выбранного workspace пока нет. Connector требует явного выбора владельцем. Затем подключите Render к репозиторию LastEld/Mozhna и создайте Blueprint из корневого `render.yaml`.
-2. Просмотрите список ресурсов и стоимость, задайте собственный `MOZHNA_PASSWORD` ≥16 символов.
-3. Web pre-deploy выполняет `alembic upgrade head`. Worker/scheduler ждут актуальную migration до пяти минут, затем начинают работу. Если стартовая миграция дольше, перезапустите их после успешного release.
-4. API берёт HTTPS origin из Render `RENDER_EXTERNAL_URL`. Для собственного домена явно задайте `PUBLIC_ORIGIN` равным адресу приложения без завершающего `/`.
-5. Проверьте `/healthz`, вход, ручной snapshot, job с закрытой вкладкой и повторный вход с другого устройства.
-6. Выполните [backup/restore drill](RECOVERY.md) и настройте наблюдение за failed/queued jobs до использования значимых данных.
+[render_build.sh](../scripts/render_build.sh) устанавливает закреплённые uv/pnpm, синхронизирует lockfiles и собирает UI. [render_start.sh](../scripts/render_start.sh) запускает supervisor. Native Python runtime Render также предоставляет Node/npm. Docker/Compose остаются вариантом локального теста.
 
-Render подключён, workspace ещё не выбран, создание платных ресурсов не подтверждено. Создание ресурсов, smoke через внешний HTTPS и облачный restore не выполнены. Blueprint не доказывает успешное размещение. Доступный connector не создаёт эту Docker/worker topology целиком, поэтому подготовлен путь через Blueprint Dashboard.
+## Что означает €0
 
-## Конфигурация
+[Официальные ограничения Free](https://render.com/docs/free):
 
-DATABASE_URL приходит из managed PostgreSQL. `MOZHNA_ENV=production` включает Secure cookie и проверку HTTPS/password. Blueprint запускает один экземпляр API. Лимит входа и сериализация мутаций владельца хранятся в PostgreSQL, общие для процессов. Полное масштабирование и нагрузочные сценарии ещё не проверены.
+- Free web засыпает после 15 минут без входящих запросов. Worker и scheduler также останавливаются. Новый пользовательский запрос будит сервис; старт может занять около минуты. Нет искусственных keep-alive запросов.
+- Free PostgreSQL ограничена 1 GB и истекает через 30 дней. Через 14 дней после истечения Render удаляет базу без платного перехода. Автоматическое платное продление не настроено. Используйте тестовые данные и экспортируйте нужное заранее; managed backups на Free нет.
+- Локальная файловая система теряется при перезапуске. Production launcher требует PostgreSQL и не подменяет её SQLite.
+- Вызовы платных моделей запрещены launcher, даже если в окружении случайно появилось разрешение inference. Переменная со значением true приводит к отказу запуска. Ручные расчёты, планы, CSV и поисковые ссылки доступны без модели.
+- Free compute не является общим денежным лимитом: Render может списать плату за превышение включённых bandwidth/build quotas при наличии платёжного метода. Для строгого €0 нужно подтвердить отсутствие платёжного метода в workspace; тогда при превышении лимитов Render приостанавливает сервисы/сборки. Коннектор не предоставляет настройки биллинга, поэтому отсутствие карты ещё не проверено. Ресурсы до этой проверки не создаются.
 
-Модели изначально выключены. Чтобы включить, на API и worker задайте выбранные API key/model переменные и разрешение metered inference из [RUNNING](RUNNING.md). Используйте billing limits провайдера; число jobs не является денежной квотой. MCP включается отдельным токеном только на API, не через пароль владельца.
+## Создание после проверки биллинга
 
-Новые provider requests могут обрабатываться за пределами региона приложения. S3, OIDC, OCR, bank sync и внешние callbacks в alpha не используются и не создаются blueprint.
+1. В `My Workspace` проверьте отсутствие платёжного метода и платных подписок. Не добавляйте карту для обхода Free-лимитов.
+2. Откройте [Blueprint MOZHNA](https://dashboard.render.com/blueprint/new?repo=https://github.com/LastEld/Mozhna). Репозиторий и актуальный `render.yaml` должны быть доступны Render.
+3. Проверьте ровно два ресурса: `mozhna-test` (Free web) и `mozhna-test-db` (Free PostgreSQL). Не добавляйте отдельные платные workers, диски или previews.
+4. Render генерирует пароль владельца через `generateValue`. Найдите `MOZHNA_PASSWORD` в защищённой конфигурации сервиса для первого входа; не публикуйте его в репозитории/отчётах. Origin берётся из `RENDER_EXTERNAL_URL`.
+5. После deployment проверьте `/healthz`, вход, ручной snapshot, job с закрытой вкладкой и её сохранность после пробуждения сервиса.
+6. Зафиксируйте дату истечения тестовой БД и сохраните JSON export. Если данные нужны после 30 дней, выберите отдельно одобренное бесплатное хранилище; переход на платный plan запрещён текущим бюджетом.
 
-## Релиз и откат
+Auto-deploy выключен. Обновление кода не запускает бесконтрольно Render builds. Включение models, платных plans или always-on режима не входит в этот тестовый запуск.
 
-Запускайте Runtime CI до deployment: migrations, pytest, PostgreSQL dump/restore, contract drift, frontend tests/build, Playwright, image и HTTP smoke. Новые браузерные и restore gates должны пройти именно на выбранном commit. Первый запуск образа на Render требует отдельной проверки самого хостинга и мобильного интерфейса. Текущий SHA развёрнутого образа нужно фиксировать в release evidence.
+## Проверка и восстановление
 
-Перед миграцией сохраните backup. Миграции применяются release task, а не каждым replica. Откат контейнера не означает безопасный downgrade БД. При восстановлении остановите API, worker и scheduler, восстановите базу отдельно и выполните `python -m mozhna.recovery --runtime-stopped` до запуска процессов. Команда изолирует queued/running jobs, удаляет schedules и sessions; точная последовательность — в [RECOVERY](RECOVERY.md). Внешняя отправка отсутствует во всех текущих handlers.
+Runtime CI проверяет backend/PostgreSQL, миграции, Docker, native Free build, настоящий запуск supervisor и сохранность результата job после перезапуска. Браузерный известный сбой `WEBKIT-OFFLINE-01` остаётся открытым: [CLIENTS](CLIENTS.md). Эти проверки не заменяют HTTPS smoke на Render.
 
-Локальный Compose — отдельный режим с HTTP на loopback, не production-конфигурация. Подробности: [RUNNING](RUNNING.md), [OPERATIONS](OPERATIONS.md).
+Перед восстановлением остановите все процессы. [RECOVERY](RECOVERY.md) описывает карантин очереди/расписаний/сессий и обязательную повторную сверку финансов. На Free отсутствуют managed backups; не считайте тестовую БД долговременным архивом. Команды локального запуска: [RUNNING](RUNNING.md).

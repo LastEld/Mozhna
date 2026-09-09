@@ -73,6 +73,12 @@ jobs:
       - name: Stop image
         if: always()
         run: docker rm --force mozhna-smoke || true
+      - name: Build native Free test service
+        run: bash scripts/render_build.sh
+      - name: Verify native Free supervisor and restart persistence
+        env:
+          TEST_DATABASE_URL: postgresql+psycopg://mozhna_test:synthetic-ci-password@localhost:5432/mozhna_test
+        run: python scripts/smoke_free_runtime.py
   browsers:
     runs-on: ubuntu-latest
     timeout-minutes: 15

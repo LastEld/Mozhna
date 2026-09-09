@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — тестовый бюджет €0
+
+- Заменён платный Render blueprint на Free Python web + Free PostgreSQL; workspace подтверждён владельцем.
+- Добавлен supervisor отдельных API/worker/scheduler с migration, graceful shutdown и запретом платных моделей.
+- Добавлены native build/start scripts, проверки lifecycle и CI smoke с сохранностью job после restart.
+- В UI тестовой сборки указаны паузы фона и временное хранение; idle/expiry и условия исключения overage billing описаны в DEPLOYMENT.
+- Облачные ресурсы ещё не созданы: отсутствие платёжного метода пока не подтверждено.
+
 ## Unreleased — устойчивость alpha
 
 - Лимит входа перенесён в БД, добавлены блокировка владельца и повторная проверка сессии перед записью; исправлены гонки удаления и scheduler. Migration `0002_owner_state`.

@@ -1,6 +1,6 @@
 # Состояние реализации — alpha 0.1
 
-Обновлено: 2026-09-08. После перерывов работа продолжена основным исполнителем и одним агентом по поручению владельца. Доработки текущего среза опубликованы. Backend/PostgreSQL/restore/frontend/Docker CI прошёл; офлайн-перезагрузка WebKit остаётся незакрытой.
+Обновлено: 2026-09-09. После перерывов работа продолжена основным исполнителем и одним агентом по поручению владельца. Доработки текущего среза опубликованы. Backend/PostgreSQL/restore/frontend/Docker CI прошёл; офлайн-перезагрузка WebKit остаётся незакрытой.
 
 Это действующая карта **кода**, в отличие от целевой архитектуры в остальных документах. Наличие функции в roadmap не означает, что она работает в alpha.
 
@@ -55,9 +55,13 @@ C0–C3 имеют реализованные части, но не закрыт
 Commit `f6993d5cb933bfa7c3b85a28118e0beca83fb5c8` прошёл [Runtime verify](https://github.com/LastEld/Mozhna/actions/runs/34274462396/job/102223924649): **65 backend tests, без пропусков**, включая PostgreSQL гонки и реальный dump/restore с карантином; **10 Vitest tests**, production frontend build, contract drift, migrations, Docker build и production HTTP smoke. Документационный CI также зелёный. Отдельный полный iPhone offline gate открыт: его результат пока не подтверждён.
 
 1. Закрыть `WEBKIT-OFFLINE-01`: подтвердить offline reload на настоящем iPhone и разобраться с воспроизведением в WebKit CI. Не считать ожидаемый сбой успешной проверкой функции.
-2. Подтвердить Render workspace и стоимость ресурсов blueprint; развернуть с собственным паролем. Затем проверить вход и background job через HTTPS.
+2. `My Workspace` и бюджет €0 подтверждены. Проверить отсутствие платёжного метода для исключения overage billing, создать только Free web + Free PostgreSQL; затем проверить HTTPS и background job.
 3. Выполнить облачный [restore drill](RECOVERY.md) и проверить настоящие ПК/Android/iPhone, установку и клавиатуру. Эмуляция Playwright не заменяет устройства.
 4. Настроить два provider accounts, их model IDs и отдельные billing limits; провести live contract tests.
 5. Подключить OIDC/MCP OAuth, затем первый проверяемый source connector по roadmap. Не включать внешнюю отправку без отдельного action boundary.
 
 Браузерный [прогон на aee31f7b](https://github.com/LastEld/Mozhna/actions/runs/34275211046/job/102226416592) дал 5 успешных тестов и 1 сбой: офлайн-перезагрузка WebKit. Денежный цикл, планы, наблюдения, сохранённая job и CSV завершились до сбоя; отдельный тест конфликта snapshot прошёл во всех трёх профилях. В текущем suite основной цикл/reconnect отделён от offline reload. `WEBKIT-OFFLINE-01` продолжает исполняться с отметкой ожидаемого сбоя только у его offline-границы; неожиданный успех требует пересмотра отметки и делает CI красным. Это открытое ограничение, а не прохождение iPhone offline gate. [Подробности](CLIENTS.md).
+
+## Бесплатный тестовый runtime
+
+По поручению владельца платная Render-топология заменена на Free web + Free PostgreSQL. API/worker/scheduler — отдельные процессы одного экземпляра; supervisor применяет migration, останавливает все роли при сбое, обрабатывает shutdown и запрещает платный inference. Idle web останавливает фон, jobs хранятся в PostgreSQL до её истечения через 30 дней. Это ограниченный тест, не always-on production. Free compute не гарантирует €0 при привязанной карте; биллинг коннектором не проверяется, ресурсы пока не созданы. [Детали](DEPLOYMENT.md).

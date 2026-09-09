@@ -407,6 +407,13 @@ export default function App() {
           </span>
         </header>
         <div className="content">
+          {import.meta.env.VITE_MOZHNA_FREE_TEST === "true" && (
+            <div className="alert warning" role="note">
+              Тестова версія · €0. Фонові завдання можуть призупинятися, коли
+              застосунком не користуються. Тестова база тимчасова — регулярно
+              експортуйте дані.
+            </div>
+          )}
           {!online && (
             <div className="alert warning" role="status">
               Немає з’єднання. Показані дані можуть бути застарілими. Записи й

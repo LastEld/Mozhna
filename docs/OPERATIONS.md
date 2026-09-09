@@ -40,6 +40,6 @@ SQLite-проверка и реальный PostgreSQL dump/restore с кара�
 
 Paid inference изначально выключен. До 40 пользовательских jobs/24 часа и 1200 output tokens на вызов — ограничения нагрузки, не monetary budget reservation. Входные tokens и повторы после аварии могут оплачиваться; расходы надо ограничить у провайдера до включения.
 
-Учитывайте API, worker, scheduler, БД и inference. Render Blueprint использует платные компоненты; ресурсы ещё не созданы. Персональные billing limits, alerting и cost accounting остаются открытыми.
+Текущий тестовый бюджет владельца — €0. Render Blueprint содержит Free web и Free PostgreSQL; API/worker/scheduler разделяют экземпляр и засыпают вместе. Inference запрещён. Отсутствие платёжного метода ещё нужно подтвердить для исключения overage billing; ресурсы не созданы. Ограничения idle и 30-дневной БД — в [DEPLOYMENT](DEPLOYMENT.md).
 
 Внешние отправки, банковские платежи, approvals, мандаты и OUTCOME_UNKNOWN для сторонних действий пока не реализованы. Их recovery/receipt/reconciliation policy нужно проверить до появления соответствующего executor.

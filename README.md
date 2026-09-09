@@ -2,6 +2,8 @@
 
 Облачный личный финансовый помощник: понять доступную сумму, проверить покупку, сравнить способы удовлетворить повторяющуюся потребность и сохранить результат.
 
+**Тестовый бюджет: €0.** Render workspace — `My Workspace`; Free-конфигурация подготовлена, отсутствие платёжного метода ещё нужно подтвердить перед созданием. Фон засыпает вместе с web, тестовая PostgreSQL истекает через 30 дней. [Ограничения](docs/DEPLOYMENT.md).
+
 **Alpha 0.1:** реализованы backend, адаптивный web-интерфейс, фоновые задания и инструкции запуска. Облачные ресурсы ещё не созданы. Это однопользовательская alpha; полный roadmap остаётся открытым. [Точное состояние и ограничения](docs/IMPLEMENTATION.md).
 
 ## Что уже есть
@@ -25,7 +27,7 @@
 | API и фоновые процессы | Python 3.12, FastAPI, Pydantic, SQLAlchemy, MCP SDK |
 | Данные | PostgreSQL в облаке, SQLite для локальной разработки; Alembic migrations |
 | Контракты | Pydantic → OpenAPI → generated TypeScript types |
-| Запуск | Docker image, API + worker + scheduler, Render blueprint |
+| Запуск | Docker/Compose локально; один Render Free web + Free PostgreSQL для теста |
 | Проверки | pytest, Vitest, TypeScript/build, contract drift; PostgreSQL, container smoke и Playwright в CI |
 
 Есть manifest и публичная offline-страница через service worker; финансовые ответы не кэшируются. Push, native iOS/Android пакеты и проверка на настоящих телефонах ещё не выполнены. Обоснование языков: [STACK](docs/STACK.md).
