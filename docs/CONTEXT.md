@@ -10,7 +10,9 @@
 
 ## Бюджет теста
 
-Владелец подтвердил `My Workspace` в Render и строго €0: всё бесплатно, пока тестируем. Платные workers/БД и metered LLM inference не разрешены. Тестовая топология — один Free web instance с отдельными процессами API/worker/scheduler и Free PostgreSQL. Idle-паузы и 30-дневная тестовая БД явно отражаются в DEPLOYMENT; это не обещание бесплатного always-on production. Для защиты от overage billing ещё требуется проверка отсутствия платёжного метода.
+Владелец подтвердил `My Workspace` в Render и строго €0: всё бесплатно, пока тестируем. 2026-09-09 владелец также подтвердил, что банковская карта не привязана; повторное подтверждение этого условия не требуется. Платные workers/БД и metered LLM inference не разрешены. Тестовая топология — один Free web instance с отдельными процессами API/worker/scheduler и Free PostgreSQL. Idle-паузы и временная тестовая БД явно отражаются в [DEPLOYMENT](DEPLOYMENT.md); это не обещание бесплатного always-on production.
+
+Free PostgreSQL `mozhna-test-db` уже создана в Frankfurt и истекает 2026-10-09 в 12:44:12 UTC. Внешний доступ к БД закрыт. Free web `mozhna-test` (`srv-dagl9tid0e5s73d01c8g`) также создан. Его первая сборка прошла; запуск остановлен из-за незаполненного `DATABASE_URL`. Коннектор не возвращает connection URL БД; оператору нужно перенести Internal Database URL в Environment сервиса. HTTPS smoke остаётся невыполненным; [точная инструкция](DEPLOYMENT.md).
 
 ## Приоритет документов
 
